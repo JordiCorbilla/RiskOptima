@@ -19,7 +19,7 @@ pip install riskoptima
 ## Usage
 
 Example 1: Efficient Frontier
-```
+```python
 from riskoptima import RiskOptima
 import pandas as pd
 
@@ -35,7 +35,7 @@ vols, rets, weights = RiskOptima.efficient_frontier(mean_returns, cov_matrix)
 RiskOptima.plot_ef_ax(50, mean_returns, cov_matrix)
 ```
 Example 2: Monte Carlo Simulation
-```
+```python
 simulated_portfolios, weights_record = RiskOptima.run_monte_carlo_simulation(daily_returns, cov_matrix)
 ```
 ## Documentation
