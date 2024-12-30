@@ -38,6 +38,12 @@ Example 2: Monte Carlo Simulation
 ```python
 simulated_portfolios, weights_record = RiskOptima.run_monte_carlo_simulation(daily_returns, cov_matrix)
 ```
+
+Example 3: Macaulay Duration
+```
+Navigate to -> https://github.com/JordiCorbilla/portfolio_risk_kit/blob/main/portfolio_risk_kit.ipynb
+```
+
 ## Documentation
 
 For complete documentation and usage examples, visit the GitHub repository:
@@ -51,4 +57,4 @@ We welcome contributions! If you'd like to improve the package or report issues,
 ## License
 
 RiskOptima is licensed under the MIT License.
-Navigate to -> https://github.com/JordiCorbilla/portfolio_risk_kit/blob/main/portfolio_risk_kit.ipynb
+
