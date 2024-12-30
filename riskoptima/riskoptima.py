@@ -1,4 +1,8 @@
 """
+Author: Jordi Corbilla
+
+Date: 26/12/2024
+
 This module provides various financial functions and tools for analyzing and handling portfolio data learned from EDHEC Business School, 
 computing statistical metrics, and optimizing portfolios based on different criteria. The main features include:
 - Loading and formatting financial datasets (Fama-French, EDHEC Hedge Fund Index, etc.)
@@ -8,17 +12,46 @@ computing statistical metrics, and optimizing portfolios based on different crit
 - Value at Risk (VaR) and Conditional Value at Risk (CVaR) computations
 - Portfolio optimization based on different risk metrics
 
-Dependencies: pandas, numpy, scipy, statsmodels
+Dependencies: pandas, numpy, scipy, statsmodels, yfinance, datetime
 """
+
 
 import pandas as pd
 import numpy as np
 import scipy.stats
 import statsmodels.api as sm
 import math
+import yfinance as yf
 from scipy.stats import norm
 from scipy.optimize import minimize
+import datetime
 
+TRADING_DAYS = 260
+
+def get_trading_days():
+    """
+    Returns the number of trading days for a given year, by default 260
+
+    Returns
+    -------
+    TRADING_DAYS : TYPE
+        DESCRIPTION.
+
+    """
+    return TRADING_DAYS
+
+def download_data_yfinance(assets, start_date, end_date):
+    """
+    Downloads the adjusted close price data from Yahoo Finance for the given assets
+    between the specified date range.
+
+    :param assets: List of asset tickers.
+    :param start_date: Start date for data in 'YYYY-MM-DD' format.
+    :param end_date: End date for data in 'YYYY-MM-DD' format.
+    :return: A pandas DataFrame of adjusted close prices.
+    """
+    data = yf.download(assets, start=start_date, end=end_date)
+    return data['Close']
 
 def get_ffme_returns(file_path):
     """
@@ -388,6 +421,40 @@ def plot_ef(n_points, expected_returns, cov, style='.-', legend=False, show_cml=
         r_gmv = portfolio_return(w_gmv, expected_returns)
         vol_gmv = portfolio_volatility(w_gmv, cov)
         ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10)
+    return ax
+
+def plot_ef_ax(n_points, expected_returns, cov, style='.-', legend=False, show_cml=False, riskfree_rate=0, show_ew=False, show_gmv=False, ax=None):
+    """
+    Plots the multi-asset efficient frontier
+    """
+    
+    weights = optimal_weights(n_points, expected_returns, cov)
+    rets = [portfolio_return(w, expected_returns) for w in weights]
+    volatilities = [portfolio_volatility(w, cov) for w in weights]
+    ef = pd.DataFrame({
+        "Returns": rets, 
+        "Volatility": volatilities
+    })
+    ef.plot.line(x="Volatility", y="Returns", style=style, legend=legend, ax=ax)
+    if show_cml:
+        ax.set_xlim(left=0)
+        w_msr = max_sharpe_ratio(riskfree_rate, expected_returns, cov)
+        r_msr = portfolio_return(w_msr, expected_returns)
+        vol_msr = portfolio_volatility(w_msr, cov)
+        cml_x = [0, vol_msr]
+        cml_y = [riskfree_rate, r_msr]
+        ax.plot(cml_x, cml_y, color='blue', marker='o', linestyle='dashed', linewidth=2, markersize=10, label='Capital Market Line')
+    if show_ew:
+        n = expected_returns.shape[0]
+        w_ew = np.repeat(1 / n, n)
+        r_ew = portfolio_return(w_ew, expected_returns)
+        vol_ew = portfolio_volatility(w_ew, cov)
+        ax.plot([vol_ew], [r_ew], color='goldenrod', marker='o', markersize=10, label='Naive portfolio')
+    if show_gmv:
+        w_gmv = global_minimum_volatility(cov)
+        r_gmv = portfolio_return(w_gmv, expected_returns)
+        vol_gmv = portfolio_volatility(w_gmv, cov)
+        ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10, label='Global Minimum-variance Portfolio')
     return ax
 
 
@@ -1013,3 +1080,153 @@ def macaulay_duration_v3(cash_flows, yield_rate, freq):
     df = pd.concat([df, totals], ignore_index=True)
     
     return df
+
+def calculate_statistics(data, risk_free_rate=0.0):
+    """
+    Calculates daily returns, covariance matrix, mean daily returns, 
+    annualized returns, annualized volatility, and Sharpe ratio 
+    for the entire dataset.
+
+    :param data: A pandas DataFrame of adjusted close prices.
+    :param risk_free_rate: The risk-free rate, default is 0.0 (for simplicity).
+    :return: daily_returns (DataFrame), cov_matrix (DataFrame)
+    """
+    daily_returns = data.pct_change(fill_method=None).dropna()
+    
+    cov_matrix = daily_returns.cov()
+    
+    return daily_returns, cov_matrix
+
+
+def run_monte_carlo_simulation(daily_returns, cov_matrix, num_portfolios=100_000, 
+                               risk_free_rate=0.0):
+    """
+    Runs the Monte Carlo simulation to generate a large number of random portfolios,
+    calculates their performance metrics (annualized return, volatility, Sharpe ratio),
+    and returns a DataFrame of results as well as an array of the weight vectors.
+
+    :param daily_returns: DataFrame of asset daily returns.
+    :param cov_matrix: Covariance matrix of asset daily returns.
+    :param num_portfolios: Number of random portfolios to simulate.
+    :param risk_free_rate: Risk-free rate to be used in Sharpe ratio calculation.
+    :return: (simulated_portfolios, weights_record)
+    """
+    
+    results = np.zeros((4, num_portfolios))
+    weights_record = np.zeros((len(daily_returns.columns), num_portfolios))
+    
+    print(f'Running {num_portfolios} Monte Carlo Simulation')
+    for i in range(num_portfolios):
+        weights = np.random.random(len(daily_returns.columns))
+        weights /= np.sum(weights)
+        weights_record[:, i] = weights
+
+        portfolio_return = np.sum(weights * daily_returns.mean()) * TRADING_DAYS
+
+        portfolio_stddev = np.sqrt(
+            np.dot(weights.T, np.dot(cov_matrix, weights))
+        ) * np.sqrt(TRADING_DAYS)
+
+        sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_stddev
+
+        results[0, i] = portfolio_return
+        results[1, i] = portfolio_stddev
+        results[2, i] = sharpe_ratio
+        results[3, i] = i
+
+    columns = ['Return', 'Volatility', 'Sharpe Ratio', 'Simulation']
+    simulated_portfolios = pd.DataFrame(results.T, columns=columns)
+    
+    return simulated_portfolios, weights_record
+
+
+def get_market_statistics(market_ticker, start_date, end_date, risk_free_rate=0.0):
+    """
+    Downloads data for a market index (e.g., SPY), then calculates its
+    annualized return, annualized volatility, and Sharpe ratio.
+    """
+    market_data = yf.download([market_ticker], start=start_date, end=end_date)['Close']
+    
+    if isinstance(market_data, pd.DataFrame):
+        market_data = market_data[market_ticker] 
+    
+    market_daily_returns = market_data.pct_change(fill_method=None).dropna()
+
+    market_return = market_daily_returns.mean() * TRADING_DAYS
+    market_volatility = market_daily_returns.std() * np.sqrt(TRADING_DAYS)
+    market_sharpe_ratio = (market_return - risk_free_rate) / market_volatility
+
+    if hasattr(market_return, 'iloc'):
+        market_return = market_return.iloc[0]
+    if hasattr(market_volatility, 'iloc'):
+        market_volatility = market_volatility.iloc[0]
+    if hasattr(market_sharpe_ratio, 'iloc'):
+        market_sharpe_ratio = market_sharpe_ratio.iloc[0]
+
+    return market_return, market_volatility, market_sharpe_ratio
+
+def portfolio_performance(weights, mean_returns, cov_matrix, trading_days=252):
+    """
+    Given weights, return annualized portfolio return and volatility.
+    """
+    returns = np.sum(mean_returns * weights) * trading_days
+    volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(trading_days)
+    return returns, volatility
+
+def min_volatility(weights, mean_returns, cov_matrix):
+    """
+    Objective function: we want to minimize volatility.
+    """
+    return portfolio_performance(weights, mean_returns, cov_matrix)[1]
+
+def efficient_frontier(mean_returns, cov_matrix, num_points=50):
+    """
+    Calculates the Efficient Frontier by iterating over possible target returns
+    and finding the portfolio with minimum volatility for each target return.
+    Returns arrays of frontier volatilities, returns, and the corresponding weights.
+    """
+    results = []
+    target_returns = np.linspace(mean_returns.min(), mean_returns.max(), num_points)
+    
+    num_assets = len(mean_returns)
+    init_guess = num_assets * [1. / num_assets,]
+    bounds = tuple((0,1) for _ in range(num_assets))
+    
+    for ret in target_returns:
+        constraints = (
+            {'type':'eq', 'fun': lambda w: np.sum(w) - 1}, 
+            {'type':'eq', 'fun': lambda w: portfolio_performance(w, mean_returns, cov_matrix)[0] - ret}
+        )
+        
+        result = minimize(min_volatility, 
+                          init_guess, 
+                          args=(mean_returns, cov_matrix),
+                          method='SLSQP',
+                          bounds=bounds,
+                          constraints=constraints)
+        if result.success:
+            vol = portfolio_performance(result.x, mean_returns, cov_matrix)[1]
+            results.append((vol, ret, result.x))
+    
+    results = sorted(results, key=lambda x: x[0])
+    
+    frontier_volatility = [res[0] for res in results]
+    frontier_returns = [res[1] for res in results]
+    frontier_weights = [res[2] for res in results]
+    
+    return frontier_volatility, frontier_returns, frontier_weights
+
+def get_previous_working_day():
+    """
+    Returns the most recent weekday date in 'YYYY-MM-DD' format.
+    If today is Monday-Friday, returns today.
+    If today is Saturday, returns Friday.
+    If today is Sunday, returns Friday.
+    """
+    today = datetime.date.today()
+    # Monday=0, Tuesday=1, ..., Saturday=5, Sunday=6
+    if today.weekday() == 5:      # Saturday
+        today -= datetime.timedelta(days=1)
+    elif today.weekday() == 6:    # Sunday
+        today -= datetime.timedelta(days=2)
+    return today.strftime('%Y-%m-%d')
