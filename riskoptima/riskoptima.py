@@ -1,6 +1,6 @@
 """
 Author: Jordi Corbilla
-Version: 1.4.0
+Version: 1.5.0
 
 Date: 31/12/2024
 
@@ -14,6 +14,7 @@ computing statistical metrics, and optimizing portfolios based on different crit
 - Portfolio optimization based on different risk metrics
 - Mean Variance Optimization
 - Machine learning strategies
+- Black litterman adjusted returns
 
 Dependencies: pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn
 """
@@ -1480,3 +1481,53 @@ class RiskOptima:
         predicted_return = RiskOptima.predict_with_model(model, X_test)
         
         return predicted_return, avg_cv_score
+    
+    @staticmethod
+    def black_litterman_adjust_returns(market_returns, investor_views, view_confidences, historical_prices, tau=0.025):
+        """
+        Adjust market returns based on investor views and their confidences using the Black-Litterman model.
+    
+        :param dict market_returns: Expected market returns for each asset.
+        :param dict investor_views: Investor's views on the expected returns of assets.
+        :param dict view_confidences: Confidence levels for each investor view.
+        :param pandas.DataFrame historical_prices: Historical price data for calculating covariance matrix.
+        :param float tau: Market equilibrium uncertainty factor (default 0.025).
+        :return: Numpy array of adjusted returns for each asset.
+        """
+        num_assets = len(market_returns)
+    
+        # Create proportion matrix P and views vector Q
+        proportion_matrix = np.eye(num_assets)  # Identity matrix for simplicity
+        views_vector = np.array(list(investor_views.values())).reshape(-1, 1)
+    
+        # Compute the covariance matrix from historical prices
+        covariance_matrix = historical_prices['Close'].pct_change(fill_method=None).dropna().cov()
+    
+        # Compute Omega (diagonal matrix of view confidences)
+        omega_matrix = np.diag([tau / confidence for confidence in view_confidences.values()])
+    
+        # Apply the Black-Litterman formula
+        inv_tau_cov = np.linalg.inv(tau * covariance_matrix)
+        inv_omega = np.linalg.inv(omega_matrix)
+    
+        adjusted_returns = np.linalg.inv(inv_tau_cov + proportion_matrix.T @ inv_omega @ proportion_matrix)
+        adjusted_returns = adjusted_returns @ (
+            inv_tau_cov @ np.array(list(market_returns.values())).reshape(-1, 1) + proportion_matrix.T @ inv_omega @ views_vector
+        )
+    
+        return adjusted_returns.flatten()
+    
+    @staticmethod
+    def compute_market_returns(market_capitalizations, market_index_return):
+        """
+        Calculate market returns for individual assets based on market capitalizations and index return.
+    
+        :param dict market_capitalizations: Market capitalizations of assets.
+        :param float market_index_return: Return of the overall market index.
+        :return: Dictionary mapping tickers to their computed market returns.
+        """
+        total_market_cap = sum(market_capitalizations.values())
+        return {
+            ticker: (cap / total_market_cap) * market_index_return
+            for ticker, cap in market_capitalizations.items()
+        }
