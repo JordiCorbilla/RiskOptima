@@ -1,6 +1,6 @@
 """
 Author: Jordi Corbilla
-Version: 1.2.0
+Version: 1.3.0
 
 Date: 30/12/2024
 
