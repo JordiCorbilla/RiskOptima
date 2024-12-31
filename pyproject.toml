@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "riskoptima"
-version = "1.0.0"
+version = "1.2.0"
 description = "The RiskOptima toolkit is a comprehensive Python solution designed to assist investors in evaluating, managing, and optimizing the risk of their investment portfolios. This package implements advanced financial metrics and models to compute key risk indicators, including Value at Risk (VaR), Conditional Value at Risk (CVaR), and volatility assessment"
 authors = ["Jordi Corbilla <jordi.coll.corbilla@gmail.com>"]
 license = "MIT"
@@ -8,14 +8,6 @@ readme = "README.md"
 homepage = "https://github.com/JordiCorbilla/RiskOptima"
 repository = "https://github.com/JordiCorbilla/RiskOptima"
 keywords = ["portfolio", "risk", "optimization", "VaR", "backtesting", "monte-carlo"]
-
-[tool.poetry]
-name = "riskoptima"
-version = "0.1.0"
-description = "The RiskOptima toolkit is a comprehensive Python solution designed to assist investors in evaluating, managing, and optimizing the risk of their investment portfolios. This package implements advanced financial metrics and models to compute key risk indicators, including Value at Risk (VaR), Conditional Value at Risk (CVaR), and volatility assessment"
-authors = ["Jordi Corbilla <jordi.coll.corbilla@gmail.com>"]
-readme = "README.md"
-packages = [{include = "riskoptima"}]
 
 [tool.poetry.dependencies]
 python = ">=3.12"

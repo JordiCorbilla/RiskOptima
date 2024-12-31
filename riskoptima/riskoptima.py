@@ -1,7 +1,8 @@
 """
 Author: Jordi Corbilla
+Version: 1.2.0
 
-Date: 26/12/2024
+Date: 30/12/2024
 
 This module provides various financial functions and tools for analyzing and handling portfolio data learned from EDHEC Business School, 
 computing statistical metrics, and optimizing portfolios based on different criteria. The main features include:
@@ -11,6 +12,7 @@ computing statistical metrics, and optimizing portfolios based on different crit
 - Efficient Frontier plotting
 - Value at Risk (VaR) and Conditional Value at Risk (CVaR) computations
 - Portfolio optimization based on different risk metrics
+- Mean Variance Optimization
 
 Dependencies: pandas, numpy, scipy, statsmodels, yfinance, datetime
 """
@@ -1289,3 +1291,87 @@ class RiskOptima:
         elif today.weekday() == 6:    # Sunday
             today -= datetime.timedelta(days=2)
         return today.strftime('%Y-%m-%d')
+    
+    @staticmethod
+    def calculate_portfolio_allocation(investment_allocation):
+        """
+        Normalize portfolio allocations based on the investment amounts provided.
+    
+        :param dict investment_allocation: A dictionary mapping stock tickers to their investment amounts (e.g., {'AAPL': 1000, 'MSFT': 2000}).
+        :return: List of stock tickers and a numpy array of normalized weights.
+        """
+        total_investment = sum(investment_allocation.values())
+        normalized_weights = np.array([amount / total_investment for amount in investment_allocation.values()])
+        tickers = list(investment_allocation.keys())
+        return tickers, normalized_weights
+    
+    @staticmethod
+    def fetch_historical_stock_prices(tickers, start_date, end_date):
+        """
+        Retrieve historical stock price data for a list of tickers using Yahoo Finance.
+    
+        :param list tickers: List of stock ticker symbols.
+        :param str start_date: Start date for historical data in 'YYYY-MM-DD' format.
+        :param str end_date: End date for historical data in 'YYYY-MM-DD' format.
+        :return: pandas DataFrame containing the adjusted closing prices for the specified tickers.
+        """
+        stock_data = yf.download(tickers, start=start_date, end=end_date, progress=False)
+        return stock_data
+    
+    @staticmethod
+    def perform_mean_variance_optimization(tickers, start_date, end_date, max_acceptable_volatility, predefined_returns=None, min_allocation=0.01, max_allocation=0.35, num_simulations=100000):
+        """
+        Execute mean-variance optimization using Monte Carlo simulation with weight constraints.
+    
+        :param list tickers: List of stock ticker symbols to optimize.
+        :param str start_date: Start date for the historical data in 'YYYY-MM-DD' format.
+        :param str end_date: End date for the historical data in 'YYYY-MM-DD' format.
+        :param float max_acceptable_volatility: Maximum allowable annualized volatility for the portfolio.
+        :param ndarray predefined_returns: (Optional) Predefined annualized returns for the tickers.
+        :param float min_allocation: Minimum weight allocation for each stock.
+        :param float max_allocation: Maximum weight allocation for each stock.
+        :param int num_simulations: Number of Monte Carlo simulations to run.
+        :return: Optimal portfolio weights as a numpy array.
+        """
+        # Fetch historical stock price data
+        price_data = RiskOptima.fetch_historical_stock_prices(tickers, start_date, end_date)
+        if price_data.empty:
+            raise ValueError("No historical data retrieved. Verify the tickers and date range.")
+    
+        # Calculate daily returns
+        daily_returns = price_data.pct_change().dropna()
+    
+        # Calculate expected annualized returns if not provided
+        if predefined_returns is None:
+            predefined_returns = daily_returns.mean() * RiskOptima.TRADING_DAYS
+    
+        # Compute the annualized covariance matrix
+        covariance_matrix = daily_returns.cov() * RiskOptima.TRADING_DAYS
+    
+        simulation_results = np.zeros((4, num_simulations))
+        weight_matrix = np.zeros((len(tickers), num_simulations))
+    
+        # Perform Monte Carlo simulations
+        for i in range(num_simulations):
+            random_weights = np.random.uniform(min_allocation, max_allocation, len(tickers))
+            random_weights /= np.sum(random_weights)
+    
+            weight_matrix[:, i] = random_weights
+    
+            portfolio_return = np.sum(random_weights * predefined_returns)
+            portfolio_volatility = np.sqrt(np.dot(random_weights.T, np.dot(covariance_matrix, random_weights)))
+            sharpe_ratio = portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0
+    
+            simulation_results[:, i] = [portfolio_return, portfolio_volatility, sharpe_ratio, i]
+    
+        result_columns = ['Annualized Return', 'Annualized Volatility', 'Sharpe Ratio', 'Simulation Index']
+        simulation_results_df = pd.DataFrame(simulation_results.T, columns=result_columns)
+    
+        feasible_portfolios = simulation_results_df[simulation_results_df['Annualized Volatility'] <= max_acceptable_volatility]
+    
+        if feasible_portfolios.empty:
+            raise ValueError("No portfolio satisfies the maximum volatility constraint.")
+    
+        optimal_index = feasible_portfolios['Sharpe Ratio'].idxmax()
+    
+        return weight_matrix[:, int(optimal_index)]
