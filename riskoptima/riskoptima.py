@@ -1,8 +1,8 @@
 """
 Author: Jordi Corbilla
-Version: 1.3.0
+Version: 1.4.0
 
-Date: 30/12/2024
+Date: 31/12/2024
 
 This module provides various financial functions and tools for analyzing and handling portfolio data learned from EDHEC Business School, 
 computing statistical metrics, and optimizing portfolios based on different criteria. The main features include:
@@ -13,8 +13,9 @@ computing statistical metrics, and optimizing portfolios based on different crit
 - Value at Risk (VaR) and Conditional Value at Risk (CVaR) computations
 - Portfolio optimization based on different risk metrics
 - Mean Variance Optimization
+- Machine learning strategies
 
-Dependencies: pandas, numpy, scipy, statsmodels, yfinance, datetime
+Dependencies: pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn
 """
 
 
@@ -27,6 +28,12 @@ import yfinance as yf
 from scipy.stats import norm
 from scipy.optimize import minimize
 import datetime
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 
 class RiskOptima:
     TRADING_DAYS = 260
@@ -55,7 +62,7 @@ class RiskOptima:
         :param end_date: End date for data in 'YYYY-MM-DD' format.
         :return: A pandas DataFrame of adjusted close prices.
         """
-        data = yf.download(assets, start=start_date, end=end_date)
+        data = yf.download(assets, start=start_date, end=end_date, progress=False)
         return data['Close']
     
     @staticmethod
@@ -101,16 +108,13 @@ class RiskOptima:
             number of inds is 30 or 49
         """    
         if filetype == "returns":
-            name = f"{weighting}_rets"
             divisor = 100
         elif filetype == "nfirms":
-            name = "nfirms"
             divisor = 1
         elif filetype == "size":
-            name = "size"
             divisor = 1
         else:
-            raise ValueError(f"filetype must be one of: returns, nfirms, size")
+            raise ValueError("filetype must be one of: returns, nfirms, size")
     
         ind = pd.read_csv(file_path, header=0, index_col=0, na_values=-99.99) / divisor
         ind.index = pd.to_datetime(ind.index, format="%Y%m").to_period('M')
@@ -546,7 +550,7 @@ class RiskOptima:
             "safe_returns": safe_returns,
             "drawdown": drawdown,
             "peak": peak_history,
-            "floor": floorval_history
+            "floorval_history": floorval_history
         }
         return backtest_result
     
@@ -867,7 +871,6 @@ class RiskOptima:
         """
         n_coupons = round(maturity*coupons_per_year)
         coupon_amt = principal*coupon_rate/coupons_per_year
-        coupons = np.repeat(coupon_amt, n_coupons)
         coupon_times = np.arange(1, n_coupons+1)
         cash_flows = pd.Series(data=coupon_amt, index=coupon_times)
         cash_flows.iloc[-1] += principal
@@ -1334,12 +1337,12 @@ class RiskOptima:
         :return: Optimal portfolio weights as a numpy array.
         """
         # Fetch historical stock price data
-        price_data = RiskOptima.fetch_historical_stock_prices(tickers, start_date, end_date)
+        price_data = RiskOptima.fetch_historical_stock_prices(tickers, start_date, end_date)['Close']
         if price_data.empty:
             raise ValueError("No historical data retrieved. Verify the tickers and date range.")
     
         # Calculate daily returns
-        daily_returns = price_data.pct_change().dropna()
+        daily_returns = price_data.pct_change(fill_method=None).dropna()
     
         # Calculate expected annualized returns if not provided
         if predefined_returns is None:
@@ -1375,3 +1378,105 @@ class RiskOptima:
         optimal_index = feasible_portfolios['Sharpe Ratio'].idxmax()
     
         return weight_matrix[:, int(optimal_index)]
+  
+    @staticmethod
+    def add_features(stock_prices):
+        """
+        Add technical indicators like moving averages to the stock data.
+        :param stock_prices: DataFrame of stock prices.
+        :return: DataFrame with additional feature columns.
+        """
+        features = pd.DataFrame(stock_prices)
+        features['5_day_avg'] = stock_prices.rolling(window=5).mean()
+        features['10_day_avg'] = stock_prices.rolling(window=10).mean()
+        features['Close'] = stock_prices
+        return features
+    
+    
+    @staticmethod
+    def create_lagged_features(data, lag_days=5):
+        """
+        Create lagged features for machine learning models.
+        :param data: DataFrame containing the stock prices.
+        :param lag_days: Number of lag days to include.
+        :return: DataFrame with lagged features and target variable.
+        """
+        lagged_data = data.copy()
+        for lag in range(1, lag_days + 1):
+            lagged_data[f'lag_{lag}'] = lagged_data['Close'].shift(lag)
+        lagged_data.dropna(inplace=True)
+        return lagged_data
+    
+    @staticmethod
+    def evaluate_model(model, X, y):
+        """
+        Evaluate the model using cross-validation and calculate the average performance metrics.
+        :param model: The machine learning model to evaluate.
+        :param X: Feature matrix.
+        :param y: Target variable.
+        :return: Cross-validation score and mean squared error.
+        """
+        cv_scores = cross_val_score(model, X, y, cv=5, scoring='r2')
+        model.fit(X, y)
+        predictions = model.predict(X)
+        mse = mean_squared_error(y, predictions)
+        return np.mean(cv_scores), mse
+    
+    @staticmethod
+    def predict_with_model(model, feature_data):
+        """
+        Predict stock returns using the trained model.
+        :param model: Trained machine learning model.
+        :param feature_data: DataFrame of features for prediction.
+        :return: Predicted stock return.
+        """
+        scaler = StandardScaler()
+        feature_data_scaled = scaler.fit_transform(feature_data)
+        predictions = model.predict(feature_data_scaled)
+        return predictions[-1]  # Return the last prediction as the future return
+    
+    
+    @staticmethod
+    def generate_stock_predictions(ticker, start_date, end_date, model_type='Linear Regression'):
+        """
+        Generate stock return predictions and model confidence using a specified model type.
+        :param ticker: Stock ticker symbol.
+        :param start_date: Start date for the historical data (YYYY-MM-DD).
+        :param end_date: End date for the historical data (YYYY-MM-DD).
+        :param model_type: Choice of machine learning model ('Linear Regression', 'Random Forest', 'Gradient Boosting').
+        :return: Tuple of predicted return and model confidence.
+        """
+        # Fetch and preprocess stock data
+        stock_prices = RiskOptima.download_data_yfinance(ticker, start_date, end_date)
+        enriched_data = RiskOptima.add_features(stock_prices)
+        prepared_data = RiskOptima.create_lagged_features(enriched_data)
+    
+        # Separate features and target variable
+        X = prepared_data.drop('Close', axis=1)
+        y = prepared_data['Close']
+    
+        # Split data into training and testing sets
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+        # Impute missing values
+        imputer = SimpleImputer(strategy='mean')
+        X_train = imputer.fit_transform(X_train)
+        X_test = imputer.transform(X_test)
+    
+        # Select machine learning model
+        if model_type == 'Random Forest':
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
+        elif model_type == 'Gradient Boosting':
+            model = GradientBoostingRegressor(n_estimators=100, random_state=42)
+        elif model_type == 'Linear Regression':
+            model = LinearRegression()
+        else:
+            raise ValueError("Invalid model type. Choose from 'Linear Regression', 'Random Forest', or 'Gradient Boosting'.")
+    
+        # Train and evaluate the model
+        avg_cv_score, mse = RiskOptima.evaluate_model(model, X_train, y_train)
+    
+        # Predict future returns
+        predicted_return = RiskOptima.predict_with_model(model, X_test)
+        
+        return predicted_return, avg_cv_score
