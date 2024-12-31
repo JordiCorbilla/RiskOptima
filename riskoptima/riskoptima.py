@@ -1,6 +1,6 @@
 """
 Author: Jordi Corbilla
-Version: 1.5.0
+Version: 1.6.0
 
 Date: 31/12/2024
 
@@ -15,6 +15,7 @@ computing statistical metrics, and optimizing portfolios based on different crit
 - Mean Variance Optimization
 - Machine learning strategies
 - Black litterman adjusted returns
+- Market correlation and financial ratios
 
 Dependencies: pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn
 """
@@ -226,16 +227,27 @@ class RiskOptima:
     
     
     @staticmethod
-    def sharpe_ratio(returns, riskfree_rate, periods_per_year):
+    def sharpe_ratio(returns, risk_free_rate, periods_per_year=None):
         """
-        Computes the annualized Sharpe ratio of a set of returns
+        Calculate the Sharpe Ratio for a given set of investment returns.
+    
+        :param returns: pandas Series or numpy array of investment returns.
+        :param float risk_free_rate: Annualized risk-free rate (e.g., yield on government bonds).
+        :param int periods_per_year: Number of periods per year (e.g., 12 for monthly, 252 for daily). 
+                                     Defaults to RiskOptima.get_trading_days() for daily data.
+        :return: float Sharpe Ratio.
         """
-        rf_per_period = (1 + riskfree_rate)**(1 / periods_per_year) - 1
+        if periods_per_year is None:
+            periods_per_year = RiskOptima.get_trading_days()
+    
+        rf_per_period = (1 + risk_free_rate)**(1 / periods_per_year) - 1
         excess_returns = returns - rf_per_period
+    
+        # Use helper methods for annualization
         ann_excess_returns = RiskOptima.annualize_returns(excess_returns, periods_per_year)
         ann_volatility = RiskOptima.annualize_volatility(returns, periods_per_year)
-        return ann_excess_returns / ann_volatility
     
+        return ann_excess_returns / ann_volatility
     
     @staticmethod
     def is_normal(returns, level=0.01):
@@ -1531,3 +1543,74 @@ class RiskOptima:
             ticker: (cap / total_market_cap) * market_index_return
             for ticker, cap in market_capitalizations.items()
         }
+    
+    @staticmethod
+    def sortino_ratio(returns, risk_free_rate):
+        """
+        Calculate the Sortino Ratio for a set of investment returns.
+
+        :param returns: pandas Series or numpy array of investment returns.
+        :param float risk_free_rate: Annualized risk-free rate (e.g., yield on government bonds).
+        :return: float Sortino Ratio.
+        """
+        trading_days = RiskOptima.get_trading_days()
+        excess_returns = returns - (risk_free_rate / trading_days)
+        downside_returns = np.minimum(excess_returns, 0)
+        annualized_excess_return = np.mean(excess_returns) * trading_days
+        annualized_downside_std_dev = np.std(downside_returns) * np.sqrt(trading_days)
+        return annualized_excess_return / annualized_downside_std_dev
+    @staticmethod
+    def information_ratio(returns, benchmark_returns):
+        """
+        Calculate the Information Ratio for a set of investment returns against a benchmark.
+    
+        :param returns: pandas Series or numpy array of portfolio returns.
+        :param benchmark_returns: pandas Series or numpy array of benchmark returns.
+        :return: float Information Ratio.
+        """
+        # Ensure inputs are Series
+        if isinstance(returns, pd.DataFrame):
+            if returns.shape[1] > 1:
+                raise ValueError("`returns` must be a pandas Series or 1D numpy array, not a DataFrame with multiple columns.")
+            returns = returns.squeeze()
+    
+        if isinstance(benchmark_returns, pd.DataFrame):
+            if benchmark_returns.shape[1] > 1:
+                raise ValueError("`benchmark_returns` must be a pandas Series or 1D numpy array, not a DataFrame with multiple columns.")
+            benchmark_returns = benchmark_returns.squeeze()
+    
+        # Ensure alignment of indices
+        common_index = returns.index.intersection(benchmark_returns.index)
+        returns = returns.loc[common_index]
+        benchmark_returns = benchmark_returns.loc[common_index]
+    
+        trading_days = RiskOptima.get_trading_days()
+    
+        # Compute active returns and tracking error
+        active_returns = returns - benchmark_returns
+    
+        if np.allclose(active_returns, 0):  # If active returns are effectively zero
+            return 0.0  # Explicitly return 0 for identical returns
+    
+        annualized_active_return = np.mean(active_returns) * trading_days
+        tracking_error = np.std(active_returns) * np.sqrt(trading_days)
+    
+        if tracking_error == 0:  # Avoid division by zero
+            return 0.0
+    
+        # Return single statistic
+        return annualized_active_return / tracking_error
+
+    @staticmethod
+    def correlation_with_market(portfolio_returns, market_returns):
+        """
+        Calculate the correlation between portfolio returns and market index returns.
+
+        :param portfolio_returns: pandas Series of portfolio returns.
+        :param market_returns: pandas Series of market index returns.
+        :return: float Correlation coefficient.
+        """
+        common_dates = portfolio_returns.index.intersection(market_returns.index)
+        portfolio_aligned = portfolio_returns.loc[common_dates]
+        market_aligned = market_returns.loc[common_dates]
+        return portfolio_aligned.corr(market_aligned)
