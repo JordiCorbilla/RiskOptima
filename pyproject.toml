@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "riskoptima"
-version = "1.4.0"
+version = "1.5.0"
 description = "The RiskOptima toolkit is a comprehensive Python solution designed to assist investors in evaluating, managing, and optimizing the risk of their investment portfolios. This package implements advanced financial metrics and models to compute key risk indicators, including Value at Risk (VaR), Conditional Value at Risk (CVaR), and volatility assessment"
 authors = ["Jordi Corbilla <jordi.coll.corbilla@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/JordiCorbilla/RiskOptima"
 repository = "https://github.com/JordiCorbilla/RiskOptima"
-keywords = ["portfolio", "risk", "optimization", "VaR", "backtesting", "monte-carlo", "machine-learning", "random-forest", "linear-regression", "gradient-boosting", "mean-variance"]
+keywords = ["portfolio", "risk", "optimization", "VaR", "backtesting", "monte-carlo", "machine-learning", "random-forest", "linear-regression", "gradient-boosting", "mean-variance", "black-litterman"]
 
 [tool.poetry.dependencies]
 python = ">=3.12"
