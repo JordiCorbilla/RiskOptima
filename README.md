@@ -13,6 +13,8 @@ RiskOptima is a comprehensive Python toolkit for evaluating, managing, and optim
 
 ## Installation
 
+See the project here: https://pypi.org/project/riskoptima/
+
 ```
 pip install riskoptima
 ```
