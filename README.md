@@ -11,7 +11,7 @@ https://pypistats.org/packages/riskoptima
 - Risk Management: Compute key financial risk metrics such as Value at Risk (VaR), Conditional Value at Risk (CVaR), volatility, and drawdowns.
 - Backtesting Framework: Simulate historical performance of investment strategies and analyze portfolio dynamics over time.
 - Machine Learning Integration: Future-ready for implementing machine learning models for predictive analytics and advanced portfolio insights.
-- Monte Carlo Simulations: Perform extensive simulations to analyze potential portfolio outcomes.
+- Monte Carlo Simulations: Perform extensive simulations to analyze potential portfolio outcomes. See example here https://github.com/JordiCorbilla/efficient-frontier-monte-carlo-portfolio-optimization
 - Comprehensive Financial Metrics: Calculate returns, Sharpe ratios, covariance matrices, and more.
 
 ## Installation
