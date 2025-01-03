@@ -53,7 +53,7 @@ Navigate to -> https://github.com/JordiCorbilla/portfolio_risk_kit/blob/main/por
 
 For complete documentation and usage examples, visit the GitHub repository:
 
-RiskOptima GitHub
+[RiskOptima GitHub](https://github.com/JordiCorbilla/RiskOptima)
 
 ## Contributing
 
