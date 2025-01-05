@@ -1,8 +1,8 @@
 """
 Author: Jordi Corbilla
-Version: 1.6.0
+Version: 1.8.0
 
-Date: 31/12/2024
+Date: 05/01/2024
 
 This module provides various financial functions and tools for analyzing and handling portfolio data learned from EDHEC Business School, 
 computing statistical metrics, and optimizing portfolios based on different criteria. The main features include:
@@ -13,7 +13,7 @@ computing statistical metrics, and optimizing portfolios based on different crit
 - Value at Risk (VaR) and Conditional Value at Risk (CVaR) computations
 - Portfolio optimization based on different risk metrics
 - Mean Variance Optimization
-- Machine learning strategies
+- Machine learning strategies (Linear Regression, XGBoost, SVR, etc.)
 - Black litterman adjusted returns
 - Market correlation and financial ratios
 
@@ -29,13 +29,22 @@ import math
 import yfinance as yf
 from scipy.stats import norm
 from scipy.optimize import minimize
-import datetime
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
+from xgboost import XGBRegressor
+from sklearn.svm import SVR
+from datetime import date, datetime, timedelta
+import seaborn as sns
+from matplotlib.ticker import MultipleLocator
+from matplotlib.dates import DateFormatter
+from matplotlib.dates import AutoDateLocator
+import matplotlib.patches as patches
 
 class RiskOptima:
     TRADING_DAYS = 260
@@ -223,7 +232,7 @@ class RiskOptima:
         """
         Annualizes the volatility of a set of returns
         """
-        return returns.std() * (periods_per_year**0.5)
+        return returns.std(axis=0) * (periods_per_year**0.5)
     
     
     @staticmethod
@@ -734,7 +743,7 @@ class RiskOptima:
         rho_bar = (rhos.values.sum() - n) / (n * (n - 1))
         ccor = np.full_like(rhos, rho_bar)
         np.fill_diagonal(ccor, 1.)
-        sd = returns.std()
+        sd = returns.std(axis=0)
         return pd.DataFrame(ccor * np.outer(sd, sd), index=returns.columns, columns=returns.columns)
     
     @staticmethod
@@ -999,7 +1008,7 @@ class RiskOptima:
         e_surplus = (cap-terminal_wealth[reach]).mean() if reach.sum() > 0 else np.nan
         sum_stats = pd.DataFrame.from_dict({
             "mean": terminal_wealth.mean(),
-            "std" : terminal_wealth.std(),
+            "std" : terminal_wealth.std(axis=0),
             "p_breach": p_breach,
             "e_short":e_short,
             "p_reach": p_reach,
@@ -1188,7 +1197,6 @@ class RiskOptima:
         results = np.zeros((4, num_portfolios))
         weights_record = np.zeros((len(daily_returns.columns), num_portfolios))
         
-        print(f'Running {num_portfolios} Monte Carlo Simulation')
         for i in range(num_portfolios):
             weights = np.random.random(len(daily_returns.columns))
             weights /= np.sum(weights)
@@ -1218,7 +1226,7 @@ class RiskOptima:
         Downloads data for a market index (e.g., SPY), then calculates its
         annualized return, annualized volatility, and Sharpe ratio.
         """
-        market_data = yf.download([market_ticker], start=start_date, end=end_date)['Close']
+        market_data = yf.download([market_ticker], start=start_date, end=end_date, progress=False)['Close']
         
         if isinstance(market_data, pd.DataFrame):
             market_data = market_data[market_ticker] 
@@ -1226,7 +1234,7 @@ class RiskOptima:
         market_daily_returns = market_data.pct_change(fill_method=None).dropna()
     
         market_return = market_daily_returns.mean() * RiskOptima.TRADING_DAYS
-        market_volatility = market_daily_returns.std() * np.sqrt(RiskOptima.TRADING_DAYS)
+        market_volatility = market_daily_returns.std(axis=0) * np.sqrt(RiskOptima.TRADING_DAYS)
         market_sharpe_ratio = (market_return - risk_free_rate) / market_volatility
     
         if hasattr(market_return, 'iloc'):
@@ -1300,12 +1308,12 @@ class RiskOptima:
         If today is Saturday, returns Friday.
         If today is Sunday, returns Friday.
         """
-        today = datetime.date.today()
+        today = date.today()
         # Monday=0, Tuesday=1, ..., Saturday=5, Sunday=6
         if today.weekday() == 5:      # Saturday
-            today -= datetime.timedelta(days=1)
+            today -= timedelta(days=1)
         elif today.weekday() == 6:    # Sunday
-            today -= datetime.timedelta(days=2)
+            today -= timedelta(days=2)
         return today.strftime('%Y-%m-%d')
     
     @staticmethod
@@ -1483,6 +1491,10 @@ class RiskOptima:
             model = GradientBoostingRegressor(n_estimators=100, random_state=42)
         elif model_type == 'Linear Regression':
             model = LinearRegression()
+        elif model_type == 'XGBoost':
+            model = XGBRegressor(objective='reg:squarederror', n_estimators=100, max_depth=3)
+        elif model_type == 'SVR':
+            model = SVR(kernel='rbf', C=1.0, epsilon=0.1)
         else:
             raise ValueError("Invalid model type. Choose from 'Linear Regression', 'Random Forest', or 'Gradient Boosting'.")
     
@@ -1548,16 +1560,21 @@ class RiskOptima:
     def sortino_ratio(returns, risk_free_rate):
         """
         Calculate the Sortino Ratio for a set of investment returns.
-
+    
         :param returns: pandas Series or numpy array of investment returns.
         :param float risk_free_rate: Annualized risk-free rate (e.g., yield on government bonds).
-        :return: float Sortino Ratio.
+        :return: float Sortino Ratio (returns 0 if downside risk is zero).
         """
         trading_days = RiskOptima.get_trading_days()
         excess_returns = returns - (risk_free_rate / trading_days)
         downside_returns = np.minimum(excess_returns, 0)
         annualized_excess_return = np.mean(excess_returns) * trading_days
         annualized_downside_std_dev = np.std(downside_returns) * np.sqrt(trading_days)
+    
+        # Return 0 if downside standard deviation is zero
+        if (annualized_downside_std_dev == 0).all():  # Use `.all()` for Series comparison
+            return 0.0
+    
         return annualized_excess_return / annualized_downside_std_dev
     @staticmethod
     def information_ratio(returns, benchmark_returns):
@@ -1614,3 +1631,376 @@ class RiskOptima:
         portfolio_aligned = portfolio_returns.loc[common_dates]
         market_aligned = market_returns.loc[common_dates]
         return portfolio_aligned.corr(market_aligned)
+    
+    @staticmethod
+    def add_table_to_plot(ax, dataframe, column_descriptions=None, column_colors=None, x=1.15, y=0.2, fontsize=8, column_width=0.50):
+        """
+        Adds a table to the plot with consistent row heights and optional column colors.
+        
+        :param ax: The matplotlib Axes object.
+        :param dataframe: The pandas DataFrame to display as a table.
+        :param column_descriptions: Optional list of column header descriptions to override the defaults.
+        :param column_colors: List of colors for the table columns. Must match the number of columns in the dataframe.
+        :param x: The x-position of the table in Axes coordinates.
+        :param y: The y-position of the table in Axes coordinates.
+        :param fontsize: Font size for the table text.
+        """
+        dataframe_reset = dataframe.reset_index()
+
+        if column_descriptions is not None:
+            dataframe_reset.columns = column_descriptions
+
+        num_rows = len(dataframe_reset) + 1
+        row_height = 0.040  # Fixed height per row (adjust as needed)
+        table_height = num_rows * row_height
+
+        table_data = [dataframe_reset.columns.to_list()] + dataframe_reset.values.tolist()
+
+        table = ax.table(
+            cellText=table_data,
+            colLabels=None,  
+            colLoc="center",
+            loc="right",
+            bbox=[x, y, column_width, table_height],  # [left, bottom, width, height] with dynamic height
+            cellLoc="center"
+        )
+
+        table.auto_set_font_size(False)
+        table.set_fontsize(fontsize)
+
+        table.auto_set_column_width(col=list(range(len(dataframe_reset.columns))))
+
+        header_color = "#f2f2f2"  # Light gray background
+        for col_index in range(len(dataframe_reset.columns)):
+            cell = table[(0, col_index)]  
+            cell.set_text_props(weight="bold") 
+            cell.set_facecolor(header_color)  
+            cell.set_edgecolor("black")  
+
+        for (row, col), cell in table.get_celld().items():
+            if row == 0:
+                continue
+            cell.set_edgecolor("black")
+            cell.set_linewidth(0.5)
+
+            if column_colors and col < len(column_colors):
+                cell.set_facecolor(column_colors[col])
+
+        return table
+    
+    @staticmethod
+    def consolidate_stats_to_dataframe(titles, stats_lists):
+        """
+        Converts multiple sets of statistics into a single DataFrame for table display.
+
+        :param titles: A list of titles for the columns (e.g., ["ML & MV Optimized Portfolio", "MV Optimized Portfolio"]).
+        :param stats_lists: A list of stats lists, where each stats_list corresponds to a title.
+                            Example: [["Sharpe Ratio: 1.95", ...], ["Sharpe Ratio: 1.50", ...]]
+        :return: A pandas DataFrame with metrics as rows and titles as columns.
+        """
+
+        metrics = [stat.split(":")[0].strip() for stat in stats_lists[0]]
+
+        columns = {}
+        for title, stats_list in zip(titles, stats_lists):
+            values = [stat.split(":")[1].strip() for stat in stats_list]
+            columns[title] = values
+
+        df = pd.DataFrame(columns, index=metrics)
+        df.index.name = "Metric"
+        return df
+    
+    @staticmethod
+    def add_portfolio_terms_explanation(ax, x=0.02, y=0.02, fontsize=10):
+        """
+        Adds an explanation for portfolio-related terms to the chart.
+
+        :param ax: The matplotlib Axes object where the explanation will be added.
+        :param x: The x-coordinate of the text box in Axes coordinates (default: 0.02).
+        :param y: The y-coordinate of the text box in Axes coordinates (default: 0.02).
+        :param fontsize: Font size for the text (default: 10).
+        """
+
+        explanation_text = (
+            "Portfolio Terms Explanation:\n"
+            "1. Return: The expected gain or loss from an investment. Higher is better.\n"
+            "2. Volatility: A measure of risk based on price fluctuations. Lower is safer.\n"
+            "3. Sharpe Ratio: Measures risk-adjusted return using total volatility. Higher is better.\n"
+            "4. Risk-Free Rate: The theoretical return of an investment with zero risk.\n"
+            "5. Capital Market Line (CML): Shows risk-return combinations of efficient portfolios.\n"
+            "6. Global Minimum Variance Portfolio: Portfolio with the lowest possible volatility.\n"
+            "7. Optimal Portfolio: Portfolio with the best risk-return trade-off based on Sharpe Ratio.\n"
+            "8. Naive Portfolio: Equal-weighted portfolio, used as a baseline for comparison."
+        )
+
+        ax.text(
+            x, y,
+            explanation_text,
+            transform=ax.transAxes,
+            fontsize=fontsize,
+            verticalalignment='bottom',
+            bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white'),
+            ha='left'
+        )
+    
+    @staticmethod
+    def plot_efficient_frontier(simulated_portfolios, weights_record, assets, 
+                                market_return, market_volatility, market_sharpe, 
+                                daily_returns, cov_matrix,
+                                risk_free_rate=0.0, title='Efficient Frontier',
+                                current_weights=None,
+                                current_labels=None,
+                                start_date='2020-01-01', end_date='2023-01-01'):
+        
+        x_ticks = np.linspace(0, 0.15, 16)  # Adjust the range and number of ticks as needed
+        y_ticks = np.linspace(0, 0.30, 16)  # Adjust the range and number of ticks as needed
+        
+        fig, ax = plt.subplots(figsize=(22, 10))
+        
+        fig.subplots_adjust(right=0.95)
+
+        ax.set_xticks(x_ticks)
+        ax.set_yticks(y_ticks)
+
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: '{:.1f}%'.format(x * 100)))
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: '{:.1f}%'.format(y * 100)))
+
+        sc = ax.scatter(
+            simulated_portfolios['Volatility'], 
+            simulated_portfolios['Return'], 
+            c=simulated_portfolios['Sharpe Ratio'], 
+            cmap='plasma', 
+            alpha=0.5,
+            label='Simulated Portfolios'
+        )
+
+        fig.colorbar(sc, ax=ax, label='Sharpe Ratio')
+
+        ax.set_xlabel('Volatility')
+        ax.set_ylabel('Return')
+        ax.set_title(title)
+
+        ax.scatter(
+            market_volatility, market_return,
+            color='red', marker='o', s=100,
+            label='Market Benchmark (S&P 500)'
+        )
+
+        optimal_idx = simulated_portfolios['Sharpe Ratio'].idxmax()
+        optimal_portfolio = simulated_portfolios.loc[optimal_idx]
+        optimal_weights = weights_record[:, optimal_idx]
+
+        annual_returns = daily_returns.mean() * RiskOptima.get_trading_days()
+        annual_cov = daily_returns.cov() * RiskOptima.get_trading_days()
+        
+        n_points = 50
+        show_cml = True
+        show_ew = True
+        show_gmv = True
+        
+        RiskOptima.plot_ef_ax(
+            n_points=n_points,
+            expected_returns=annual_returns,
+            cov=annual_cov,
+            style='.-',
+            legend=False,
+            show_cml=show_cml,
+            riskfree_rate=risk_free_rate,
+            show_ew=show_ew,
+            show_gmv=show_gmv,
+            ax=ax
+        )
+        
+        # Add major and minor grid lines
+        ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
+        ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
+
+        # Ensure grid lines appear below data
+        ax.set_axisbelow(True)
+        
+        if current_weights is not None:
+            curr_portfolio_return = np.sum(current_weights * daily_returns.mean()) * RiskOptima.get_trading_days()
+            curr_portfolio_vol = np.sqrt(
+                np.dot(current_weights.T, np.dot(daily_returns.cov(), current_weights))
+            ) * np.sqrt(RiskOptima.get_trading_days())
+
+            current_sharpe = (curr_portfolio_return - risk_free_rate) / curr_portfolio_vol
+            
+            ax.scatter(
+                curr_portfolio_vol,
+                curr_portfolio_return,
+                color='black',    
+                marker='s',        
+                s=150,             
+                label='My Current Portfolio'
+            )
+
+        ax.scatter(
+            optimal_portfolio['Volatility'], 
+            optimal_portfolio['Return'],
+            color='green', marker='*', s=200,
+            label='Optimal Portfolio'
+        )
+
+        ax.legend(
+            loc='upper center',
+            bbox_to_anchor=(0.5, -0.08),
+            fancybox=True,
+            shadow=True,
+            ncol=3
+        )
+
+        portfolio_df = pd.DataFrame({
+            "Security": current_labels,
+            "Current\nPortfolio Weights": current_weights,
+            "Optimal\nPortfolio Weights": optimal_weights
+        })
+        
+        # Set the Security column as the index
+        portfolio_df.set_index("Security", inplace=True)
+        
+        # Convert weights to percentages for better readability
+        portfolio_df = portfolio_df.apply(lambda col: col.map(lambda x: f"{x * 100:.2f}%"))
+
+        RiskOptima.add_table_to_plot(ax, portfolio_df, x=1.15, y=0.52, column_width=0.50)
+
+        titles = [
+            "My Current\nPortfolio",
+            "Optimized\nOptimized Portfolio",
+            "Market Benchmark\n(S&P 500)"
+        ]
+        
+        # Corresponding statistics lists
+        stats_lists = [
+            [
+                f"Return: {curr_portfolio_return*100:.2f}%",
+                f"Volatility: {curr_portfolio_vol*100:.2f}%",
+                f"Sharpe Ratio: {current_sharpe:.2f}",
+                f"Risk Free Rate: {risk_free_rate*100:.2f}%"
+            ],      
+            [
+                f"Return: {optimal_portfolio['Return']*100:.2f}%",
+                f"Volatility: {optimal_portfolio['Volatility']*100:.2f}%",
+                f"Sharpe Ratio: {optimal_portfolio['Sharpe Ratio']:.2f}",
+                f"Risk Free Rate: {risk_free_rate*100:.2f}%"
+            ],        
+            [
+                f"Return: {market_return*100:.2f}%",
+                f"Volatility: {market_volatility*100:.2f}%",
+                f"Sharpe Ratio: {market_sharpe:.2f}",
+                f"Risk Free Rate: {risk_free_rate*100:.2f}%"            
+            ]
+        ]
+        
+        # Convert to DataFrame
+        stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
+
+        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=1.15, y=0.30)
+
+        RiskOptima.add_portfolio_terms_explanation(ax, x=1.15, y=0.00, fontsize=10)
+
+        plt.tight_layout()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plt.savefig(f"efficient_frontier_monter_carlo_{timestamp}.png", dpi=300, bbox_inches='tight')
+        plt.show()
+        
+    @staticmethod
+    def add_stats_text_box(ax, title, stats_list, x=1.19, y=0.34, color='green', fontsize=10):
+        """
+        Adds a styled text box with statistics to the plot.
+
+        :param ax: The matplotlib Axes object where the text box will be added.
+        :param title: The title of the text box (e.g., "ML & MV Optimized Portfolio").
+        :param stats_list: A list of strings with the statistics to display.
+        :param x: The x-coordinate of the text box in Axes coordinates (default: 1.19).
+        :param y: The y-coordinate of the text box in Axes coordinates (default: 0.34).
+        :param color: The edge color of the text box (default: 'green').
+        :param fontsize: The font size for the text (default: 10).
+        """
+        # Combine the title and statistics into a single string
+        stats_text = title + ":\n" + "\n".join(stats_list)
+
+        # Add the text box to the plot
+        ax.text(
+            x, y,
+            stats_text,
+            transform=ax.transAxes,
+            fontsize=fontsize,
+            verticalalignment='top',
+            bbox=dict(boxstyle="round,pad=0.3", edgecolor=color, facecolor='white'),
+            ha='left'
+        )        
+        
+    @staticmethod
+    def add_ratio_explanation(ax, x=0.02, y=0.02, fontsize=10):
+        """
+        Adds an explanation for Sharpe Ratio, Sortino Ratio, and Info Ratio to the chart.
+
+        :param ax: The matplotlib Axes object where the explanation will be added.
+        :param x: The x-coordinate of the text box in Axes coordinates (default: 0.02).
+        :param y: The y-coordinate of the text box in Axes coordinates (default: 0.02).
+        :param fontsize: Font size for the text (default: 10).
+        """
+        # Prepare the explanation text
+        explanation_text = (
+            "Ratio Explanations:\n"
+            "1. Sharpe Ratio: Measures risk-adjusted return using total volatility. Higher is better.\n"
+            "2. Sortino Ratio: Focuses on downside risk-adjusted returns. Higher is better.\n"
+            "3. Info Ratio: Measures portfolio performance vs. a benchmark. Higher is better."
+        )
+
+        # Add the text box to the plot
+        ax.text(
+            x, y,
+            explanation_text,
+            transform=ax.transAxes,
+            fontsize=fontsize,
+            verticalalignment='bottom',
+            bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white'),
+            ha='left'
+        )
+        
+    @staticmethod
+    def setup_chart_aesthetics(start_date="2023-12-01", end_date="2025-01-01"):
+        sns.set_palette("bright")
+        
+        fig, ax = plt.subplots(figsize=(20, 12))
+        
+        fig.subplots_adjust(right=0.95)
+        
+        #plt.figure(figsize=(20, 12))
+        #ax = plt.gca()
+        ax.set_xlim(pd.Timestamp(start_date), pd.Timestamp(end_date))
+        colors = sns.color_palette()
+
+        # Increase gridlines and date labels
+        major_locator = AutoDateLocator(minticks=10, maxticks=15)  # Automatically adjust the number of ticks
+        ax.xaxis.set_major_locator(major_locator)
+        ax.xaxis.set_minor_locator(AutoDateLocator(minticks=20, maxticks=30))  # More granular minor ticks
+
+        # Set x-axis formatter for dates
+        ax.xaxis.set_major_formatter(DateFormatter("%Y/%m/%d"))  # Format: 'yyyy/MM/dd'
+
+        # Tilt the date labels for better readability
+        plt.xticks(rotation=45, ha='right')
+
+        # Increase gridlines on the y-axis
+        ax.yaxis.set_major_locator(MultipleLocator(5))  # Major ticks every 5%
+        ax.yaxis.set_minor_locator(MultipleLocator(1))  # Minor ticks every 1%
+
+        # Set grid lines for both major and minor ticks
+        ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
+        ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
+        ax.set_axisbelow(True)
+        
+        # Format the y-axis as percentages
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: '{:.2f}%'.format(y)))
+
+        # Add an external border around the chart
+        rect = patches.Rectangle(
+            (0, 0), 1, 1, transform=ax.transAxes,  # Normalized coordinates
+            linewidth=2, edgecolor='black', facecolor='none'
+        )
+        ax.add_patch(rect)
+        
+        return ax, plt, colors
