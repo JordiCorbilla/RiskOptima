@@ -498,6 +498,8 @@ class RiskOptima:
             "Volatility": volatilities
         })
         ef.plot.line(x="Volatility", y="Returns", style=style, legend=legend, ax=ax)
+        w_msr = None
+        w_gmv = None
         if show_cml:
             ax.set_xlim(left=0)
             w_msr = RiskOptima.max_sharpe_ratio(riskfree_rate, expected_returns, cov)
@@ -505,19 +507,20 @@ class RiskOptima:
             vol_msr = RiskOptima.portfolio_volatility(w_msr, cov)
             cml_x = [0, vol_msr]
             cml_y = [riskfree_rate, r_msr]
-            ax.plot(cml_x, cml_y, color='blue', marker='o', linestyle='dashed', linewidth=2, markersize=10, label='Capital Market Line')
+            ax.plot(cml_x, cml_y, color='blue', marker='o', linestyle='dashed', linewidth=2, markersize=10, label='Capital Market Line (CML)')
         if show_ew:
             n = expected_returns.shape[0]
             w_ew = np.repeat(1 / n, n)
             r_ew = RiskOptima.portfolio_return(w_ew, expected_returns)
             vol_ew = RiskOptima.portfolio_volatility(w_ew, cov)
-            ax.plot([vol_ew], [r_ew], color='goldenrod', marker='o', markersize=10, label='Naive portfolio')
+            ax.plot([vol_ew], [r_ew], color='goldenrod', marker='o', markersize=10, label='Naive portfolio (EWP)')
         if show_gmv:
             w_gmv = RiskOptima.global_minimum_volatility(cov)
             r_gmv = RiskOptima.portfolio_return(w_gmv, expected_returns)
             vol_gmv = RiskOptima.portfolio_volatility(w_gmv, cov)
-            ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10, label='Global Minimum-variance Portfolio')
-        return ax
+            ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10, label='Global Minimum-variance Portfolio (GMV)')
+            
+        return ax, w_msr, w_gmv
     
     @staticmethod
     def run_cppi(risky_returns, safe_returns=None, m=3, start=1000, floor=0.8, riskfree_rate=0.03, drawdown=None):
@@ -1728,9 +1731,9 @@ class RiskOptima:
             "3. Sharpe Ratio: Measures risk-adjusted return using total volatility. Higher is better.\n"
             "4. Risk-Free Rate: The theoretical return of an investment with zero risk.\n"
             "5. Capital Market Line (CML): Shows risk-return combinations of efficient portfolios.\n"
-            "6. Global Minimum Variance Portfolio: Portfolio with the lowest possible volatility.\n"
+            "6. Global Minimum Variance Portfolio (GMV): Portfolio with the lowest possible volatility.\n"
             "7. Optimal Portfolio: Portfolio with the best risk-return trade-off based on Sharpe Ratio.\n"
-            "8. Naive Portfolio: Equal-weighted portfolio, used as a baseline for comparison."
+            "8. Naive Portfolio (EWP): Equal-weighted portfolio, used as a baseline for comparison."
         )
 
         ax.text(
@@ -1761,9 +1764,9 @@ class RiskOptima:
             x_ticks = np.linspace(0, 0.15, 16)  # Adjust the range and number of ticks as needed
             y_ticks = np.linspace(0, 0.30, 16)  # Adjust the range and number of ticks as needed
         
-        fig, ax = plt.subplots(figsize=(22, 10))
+        fig, ax = plt.subplots(figsize=(23, 10))
         
-        fig.subplots_adjust(right=0.95)
+        fig.subplots_adjust(right=0.80)
 
         if set_ticks:
             ax.set_xticks(x_ticks)
@@ -1805,7 +1808,7 @@ class RiskOptima:
         show_ew = True
         show_gmv = True
         
-        RiskOptima.plot_ef_ax(
+        _, w_msr, w_gmv = RiskOptima.plot_ef_ax(
             n_points=n_points,
             expected_returns=annual_returns,
             cov=annual_cov,
@@ -1860,7 +1863,9 @@ class RiskOptima:
         portfolio_df = pd.DataFrame({
             "Security": current_labels,
             "Current\nPortfolio Weights": current_weights,
-            "Optimal\nPortfolio Weights": optimal_weights
+            "Optimal\nPortfolio Weights": optimal_weights,
+            "GMV\nPortfolio Weights": w_gmv,
+            "CML\nPortfolio Weights": w_msr
         })
         
         # Set the Security column as the index
@@ -1869,7 +1874,7 @@ class RiskOptima:
         # Convert weights to percentages for better readability
         portfolio_df = portfolio_df.apply(lambda col: col.map(lambda x: f"{x * 100:.2f}%"))
 
-        RiskOptima.add_table_to_plot(ax, portfolio_df, x=x_pos_table, y=y_pos_table, column_width=0.50)
+        RiskOptima.add_table_to_plot(ax, portfolio_df, x=x_pos_table, y=y_pos_table, column_width=0.70)
 
         titles = [
             "My Current\nPortfolio",
@@ -1899,10 +1904,13 @@ class RiskOptima:
             ]
         ]
         
+        for spine in ax.spines.values():
+            spine.set_edgecolor('black')
+        
         # Convert to DataFrame
         stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
 
-        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30)
+        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30, column_width=0.70)
 
         RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
 
@@ -2010,4 +2018,55 @@ class RiskOptima:
         )
         ax.add_patch(rect)
         
+        for spine in ax.spines.values():
+            spine.set_edgecolor('black')
+        
         return ax, plt, colors
+    
+    @staticmethod
+    def generate_predictions_tickers(tickers, start_date, end_date, model_type):
+        predicted_return = {}
+        model_confidence = {}
+        for ticker in tickers:
+            predicted_return[ticker], model_confidence[ticker] = RiskOptima.generate_stock_predictions(
+                ticker, start_date, end_date, model_type=model_type
+            )
+        return predicted_return, model_confidence
+    
+    @staticmethod
+    def calculate_performance_metrics(portfolio_returns, market_returns, risk_free_rate, final_returns, is_market_return=False):
+        if  is_market_return:
+            return [
+                f"Sharpe Ratio: {RiskOptima.sharpe_ratio(portfolio_returns, risk_free_rate).iloc[0]:.2f}",
+                f"Sortino Ratio: {RiskOptima.sortino_ratio(portfolio_returns, risk_free_rate).iloc[0]:.2f}",
+                f"Info Ratio: {RiskOptima.information_ratio(portfolio_returns, market_returns):.2f}",
+                f"Return: {final_returns:.2f}%"
+                ]
+        return [
+            f"Sharpe Ratio: {RiskOptima.sharpe_ratio(portfolio_returns, risk_free_rate):.2f}",
+            f"Sortino Ratio: {RiskOptima.sortino_ratio(portfolio_returns, risk_free_rate):.2f}",
+            f"Info Ratio: {RiskOptima.information_ratio(portfolio_returns, market_returns):.2f}",
+            f"Return: {final_returns:.2f}%"
+        ]
+    
+    @staticmethod
+    def plot_performance_metrics(model_type, portfolio_returns_unoptimized, portfolio_returns_mv, portfolio_returns_ml_mv, 
+                                 market_returns, risk_free_rate, final_returns_unoptimized, final_returns_mv, final_returns_ml_mv, 
+                                 final_returns_market, ax, column_colors):
+        titles = [
+            "Unoptimized\nPortfolio",
+            "Mean-Variance\nOptimized Portfolio",
+            f"{model_type} & Mean-Variance\nOptimized Portfolio",
+            "Benchmark\n(S&P 500)"
+        ]
+        
+        stats_lists = [
+            RiskOptima.calculate_performance_metrics(portfolio_returns_unoptimized, market_returns, risk_free_rate, final_returns_unoptimized),  
+            RiskOptima.calculate_performance_metrics(portfolio_returns_mv, market_returns, risk_free_rate, final_returns_mv),
+            RiskOptima.calculate_performance_metrics(portfolio_returns_ml_mv, market_returns, risk_free_rate, final_returns_ml_mv),
+            RiskOptima.calculate_performance_metrics(market_returns, market_returns, risk_free_rate, final_returns_market, True)
+        ]
+        
+        stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
+        
+        RiskOptima.add_table_to_plot(ax, stats_df, None, column_colors, x=1.02, y=0.30)    
