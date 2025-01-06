@@ -1,6 +1,6 @@
 """
 Author: Jordi Corbilla
-Version: 1.8.0
+Version: 1.9.0
 
 Date: 05/01/2024
 
@@ -1750,17 +1750,24 @@ class RiskOptima:
                                 risk_free_rate=0.0, title='Efficient Frontier',
                                 current_weights=None,
                                 current_labels=None,
-                                start_date='2020-01-01', end_date='2023-01-01'):
+                                start_date='2020-01-01', 
+                                end_date='2023-01-01',
+                                set_ticks=False,
+                                x_pos_table=1.15,
+                                y_pos_table=0.52
+                                ):
         
-        x_ticks = np.linspace(0, 0.15, 16)  # Adjust the range and number of ticks as needed
-        y_ticks = np.linspace(0, 0.30, 16)  # Adjust the range and number of ticks as needed
+        if set_ticks:
+            x_ticks = np.linspace(0, 0.15, 16)  # Adjust the range and number of ticks as needed
+            y_ticks = np.linspace(0, 0.30, 16)  # Adjust the range and number of ticks as needed
         
         fig, ax = plt.subplots(figsize=(22, 10))
         
         fig.subplots_adjust(right=0.95)
 
-        ax.set_xticks(x_ticks)
-        ax.set_yticks(y_ticks)
+        if set_ticks:
+            ax.set_xticks(x_ticks)
+            ax.set_yticks(y_ticks)
 
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: '{:.1f}%'.format(x * 100)))
         ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: '{:.1f}%'.format(y * 100)))
@@ -1862,7 +1869,7 @@ class RiskOptima:
         # Convert weights to percentages for better readability
         portfolio_df = portfolio_df.apply(lambda col: col.map(lambda x: f"{x * 100:.2f}%"))
 
-        RiskOptima.add_table_to_plot(ax, portfolio_df, x=1.15, y=0.52, column_width=0.50)
+        RiskOptima.add_table_to_plot(ax, portfolio_df, x=x_pos_table, y=y_pos_table, column_width=0.50)
 
         titles = [
             "My Current\nPortfolio",
@@ -1895,9 +1902,9 @@ class RiskOptima:
         # Convert to DataFrame
         stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
 
-        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=1.15, y=0.30)
+        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30)
 
-        RiskOptima.add_portfolio_terms_explanation(ax, x=1.15, y=0.00, fontsize=10)
+        RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
 
         plt.tight_layout()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
