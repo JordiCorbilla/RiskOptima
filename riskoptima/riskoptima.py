@@ -1,11 +1,18 @@
+###############################################################################
+#                                riskoptima.py
+###############################################################################
+
 """
 Author: Jordi Corbilla
-Version: 1.9.0
+Version: 1.10.0
 
-Date: 05/01/2024
+Date: 12/01/2024
 
-This module provides various financial functions and tools for analyzing and handling portfolio data learned from EDHEC Business School, 
-computing statistical metrics, and optimizing portfolios based on different criteria. The main features include:
+This module (extended) provides various financial functions and tools for analyzing 
+and handling portfolio data learned from EDHEC Business School, computing statistical 
+metrics, and optimizing portfolios based on different criteria. 
+
+Main features include:
 - Loading and formatting financial datasets (Fama-French, EDHEC Hedge Fund Index, etc.)
 - Computing portfolio statistics (returns, volatility, Sharpe ratio, etc.)
 - Running backtests on different portfolio strategies
@@ -14,12 +21,14 @@ computing statistical metrics, and optimizing portfolios based on different crit
 - Portfolio optimization based on different risk metrics
 - Mean Variance Optimization
 - Machine learning strategies (Linear Regression, XGBoost, SVR, etc.)
-- Black litterman adjusted returns
+- Black-Litterman adjusted returns
 - Market correlation and financial ratios
+- Monte Carlo-based portfolio analysis and probability distributions
 
-Dependencies: pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn
+Dependencies: 
+    pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
+    matplotlib, seaborn, xgboost
 """
-
 
 import pandas as pd
 import numpy as np
@@ -46,28 +55,23 @@ from matplotlib.dates import DateFormatter
 from matplotlib.dates import AutoDateLocator
 import matplotlib.patches as patches
 
+
 class RiskOptima:
-    TRADING_DAYS = 260
-    
+    TRADING_DAYS = 260  # default is 260, though 252 is also common
+
     @staticmethod
     def get_trading_days():
         """
         Returns the number of trading days for a given year, by default 260
-    
-        Returns
-        -------
-        TRADING_DAYS : TYPE
-            DESCRIPTION.
-    
         """
         return RiskOptima.TRADING_DAYS
-    
+
     @staticmethod
     def download_data_yfinance(assets, start_date, end_date):
         """
         Downloads the adjusted close price data from Yahoo Finance for the given assets
         between the specified date range.
-    
+
         :param assets: List of asset tickers.
         :param start_date: Start date for data in 'YYYY-MM-DD' format.
         :param end_date: End date for data in 'YYYY-MM-DD' format.
@@ -75,7 +79,7 @@ class RiskOptima:
         """
         data = yf.download(assets, start=start_date, end=end_date, progress=False)
         return data['Close']
-    
+
     @staticmethod
     def get_ffme_returns(file_path):
         """
@@ -87,8 +91,7 @@ class RiskOptima:
         returns = returns / 100
         returns.index = pd.to_datetime(returns.index, format="%Y%m").to_period('M')
         return returns
-    
-    
+
     @staticmethod
     def get_fff_returns(file_path):
         """
@@ -97,8 +100,7 @@ class RiskOptima:
         returns = pd.read_csv(file_path, header=0, index_col=0, na_values=-99.99) / 100
         returns.index = pd.to_datetime(returns.index, format="%Y%m").to_period('M')
         return returns
-    
-    
+
     @staticmethod
     def get_hfi_returns(file_path):
         """
@@ -108,8 +110,7 @@ class RiskOptima:
         hfi = hfi / 100
         hfi.index = hfi.index.to_period('M')
         return hfi
-    
-    
+
     @staticmethod
     def get_ind_file(file_path, filetype, weighting="vw", n_inds=30):
         """
@@ -117,7 +118,7 @@ class RiskOptima:
         Variant is a tuple of (weighting, size) where:
             weighting is one of "ew", "vw"
             number of inds is 30 or 49
-        """    
+        """
         if filetype == "returns":
             divisor = 100
         elif filetype == "nfirms":
@@ -126,37 +127,33 @@ class RiskOptima:
             divisor = 1
         else:
             raise ValueError("filetype must be one of: returns, nfirms, size")
-    
+
         ind = pd.read_csv(file_path, header=0, index_col=0, na_values=-99.99) / divisor
         ind.index = pd.to_datetime(ind.index, format="%Y%m").to_period('M')
         ind.columns = ind.columns.str.strip()
         return ind
-    
-    
+
     @staticmethod
     def get_ind_returns(file_path, weighting="vw", n_inds=30):
         """
         Load and format the Ken French Industry Portfolios Monthly Returns
         """
         return RiskOptima.get_ind_file(file_path, "returns", weighting=weighting, n_inds=n_inds)
-    
-    
+
     @staticmethod
     def get_ind_nfirms(file_path, n_inds=30):
         """
         Load and format the Ken French 30 Industry Portfolios Average number of Firms
         """
         return RiskOptima.get_ind_file(file_path, "nfirms", n_inds=n_inds)
-    
-    
+
     @staticmethod
     def get_ind_size(file_path, n_inds=30):
         """
         Load and format the Ken French 30 Industry Portfolios Average size (market cap)
         """
         return RiskOptima.get_ind_file(file_path, "size", n_inds=n_inds)
-    
-    
+
     @staticmethod
     def get_ind_market_caps(nfirms_file_path, size_file_path, n_inds=30, weights=False):
         """
@@ -170,8 +167,7 @@ class RiskOptima:
             ind_capweight = ind_mktcap.divide(total_mktcap, axis="rows")
             return ind_capweight
         return ind_mktcap
-    
-    
+
     @staticmethod
     def get_total_market_index_returns(nfirms_file_path, size_file_path, returns_file_path, n_inds=30):
         """
@@ -181,8 +177,7 @@ class RiskOptima:
         ind_return = RiskOptima.get_ind_returns(returns_file_path, weighting="vw", n_inds=n_inds)
         total_market_return = (ind_capweight * ind_return).sum(axis="columns")
         return total_market_return
-    
-    
+
     @staticmethod
     def skewness(returns):
         """
@@ -194,8 +189,7 @@ class RiskOptima:
         sigma_returns = returns.std(ddof=0)
         exp = (demeaned_returns**3).mean()
         return exp / sigma_returns**3
-    
-    
+
     @staticmethod
     def kurtosis(returns):
         """
@@ -207,16 +201,14 @@ class RiskOptima:
         sigma_returns = returns.std(ddof=0)
         exp = (demeaned_returns**4).mean()
         return exp / sigma_returns**4
-    
-    
+
     @staticmethod
     def compound(returns):
         """
         Returns the result of compounding the set of returns
         """
         return np.expm1(np.log1p(returns).sum())
-    
-    
+
     @staticmethod
     def annualize_returns(returns, periods_per_year):
         """
@@ -225,21 +217,19 @@ class RiskOptima:
         compounded_growth = (1 + returns).prod()
         n_periods = returns.shape[0]
         return compounded_growth**(periods_per_year / n_periods) - 1
-    
-    
+
     @staticmethod
     def annualize_volatility(returns, periods_per_year):
         """
         Annualizes the volatility of a set of returns
         """
         return returns.std(axis=0) * (periods_per_year**0.5)
-    
-    
+
     @staticmethod
     def sharpe_ratio(returns, risk_free_rate, periods_per_year=None):
         """
         Calculate the Sharpe Ratio for a given set of investment returns.
-    
+
         :param returns: pandas Series or numpy array of investment returns.
         :param float risk_free_rate: Annualized risk-free rate (e.g., yield on government bonds).
         :param int periods_per_year: Number of periods per year (e.g., 12 for monthly, 252 for daily). 
@@ -248,16 +238,15 @@ class RiskOptima:
         """
         if periods_per_year is None:
             periods_per_year = RiskOptima.get_trading_days()
-    
+
         rf_per_period = (1 + risk_free_rate)**(1 / periods_per_year) - 1
         excess_returns = returns - rf_per_period
-    
-        # Use helper methods for annualization
+
         ann_excess_returns = RiskOptima.annualize_returns(excess_returns, periods_per_year)
         ann_volatility = RiskOptima.annualize_volatility(returns, periods_per_year)
-    
+
         return ann_excess_returns / ann_volatility
-    
+
     @staticmethod
     def is_normal(returns, level=0.01):
         """
@@ -270,8 +259,7 @@ class RiskOptima:
         else:
             statistic, p_value = scipy.stats.jarque_bera(returns)
             return p_value > level
-    
-    
+
     @staticmethod
     def drawdown(return_series: pd.Series):
         """
@@ -289,8 +277,7 @@ class RiskOptima:
             "Previous Peak": previous_peaks, 
             "Drawdown": drawdowns
         })
-    
-    
+
     @staticmethod
     def semideviation(returns):
         """
@@ -304,8 +291,7 @@ class RiskOptima:
             return returns.aggregate(RiskOptima.semideviation)
         else:
             raise TypeError("Expected returns to be a Series or DataFrame")
-    
-    
+
     @staticmethod
     def var_historic(returns, level=5):
         """
@@ -319,8 +305,7 @@ class RiskOptima:
             return -np.percentile(returns, level)
         else:
             raise TypeError("Expected returns to be a Series or DataFrame")
-    
-    
+
     @staticmethod
     def cvar_historic(returns, level=5):
         """
@@ -333,8 +318,7 @@ class RiskOptima:
             return returns.aggregate(RiskOptima.cvar_historic, level=level)
         else:
             raise TypeError("Expected returns to be a Series or DataFrame")
-    
-    
+
     @staticmethod
     def var_gaussian(returns, level=5, modified=False):
         """
@@ -351,8 +335,7 @@ class RiskOptima:
                  (z**3 - 3 * z) * (k - 3) / 24 -
                  (2 * z**3 - 5 * z) * (s**2) / 36)
         return -(returns.mean() + z * returns.std(ddof=0))
-    
-    
+
     @staticmethod
     def portfolio_return(weights, returns):
         """
@@ -360,8 +343,7 @@ class RiskOptima:
         weights are a numpy array or Nx1 matrix and returns are a numpy array or Nx1 matrix
         """
         return weights.T @ returns
-    
-    
+
     @staticmethod
     def portfolio_volatility(weights, covmat):
         """
@@ -370,8 +352,7 @@ class RiskOptima:
         """
         volatility = (weights.T @ covmat @ weights)**0.5
         return volatility
-    
-    
+
     @staticmethod
     def plot_ef2(n_points, expected_returns, cov, style):
         """
@@ -387,8 +368,7 @@ class RiskOptima:
             "Volatility": volatilities
         })
         return ef.plot.line(x="Volatility", y="Returns", style=style)
-    
-    
+
     @staticmethod
     def minimize_volatility(target_return, expected_returns, cov):
         """
@@ -399,19 +379,21 @@ class RiskOptima:
         init_guess = np.repeat(1 / n, n)
         bounds = ((0.0, 1.0),) * n
         weights_sum_to_1 = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
-        return_is_target = {'type': 'eq', 'args': (expected_returns,), 'fun': lambda weights, expected_returns: target_return - RiskOptima.portfolio_return(weights, expected_returns)}
-        weights = minimize(RiskOptima.portfolio_volatility, init_guess, args=(cov,), method='SLSQP', options={'disp': False}, constraints=(weights_sum_to_1, return_is_target), bounds=bounds)
+        return_is_target = {'type': 'eq', 'args': (expected_returns,),
+                            'fun': lambda weights, expected_returns: target_return - RiskOptima.portfolio_return(weights, expected_returns)}
+        weights = minimize(RiskOptima.portfolio_volatility, init_guess, args=(cov,),
+                           method='SLSQP', options={'disp': False},
+                           constraints=(weights_sum_to_1, return_is_target),
+                           bounds=bounds)
         return weights.x
-    
-    
+
     @staticmethod
     def tracking_error(returns_a, returns_b):
         """
         Returns the Tracking Error between the two return series
         """
         return np.sqrt(((returns_a - returns_b)**2).sum())
-    
-    
+
     @staticmethod
     def max_sharpe_ratio(riskfree_rate, expected_returns, cov):
         """
@@ -422,14 +404,17 @@ class RiskOptima:
         init_guess = np.repeat(1 / n, n)
         bounds = ((0.0, 1.0),) * n
         weights_sum_to_1 = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
+
         def neg_sharpe(weights, riskfree_rate, expected_returns, cov):
             r = RiskOptima.portfolio_return(weights, expected_returns)
             vol = RiskOptima.portfolio_volatility(weights, cov)
             return -(r - riskfree_rate) / vol
-        weights = minimize(neg_sharpe, init_guess, args=(riskfree_rate, expected_returns, cov), method='SLSQP', options={'disp': False}, constraints=(weights_sum_to_1,), bounds=bounds)
+
+        weights = minimize(neg_sharpe, init_guess, args=(riskfree_rate, expected_returns, cov),
+                           method='SLSQP', options={'disp': False},
+                           constraints=(weights_sum_to_1,), bounds=bounds)
         return weights.x
-    
-    
+
     @staticmethod
     def global_minimum_volatility(cov):
         """
@@ -438,20 +423,21 @@ class RiskOptima:
         """
         n = cov.shape[0]
         return RiskOptima.max_sharpe_ratio(0, np.repeat(1, n), cov)
-    
-    
+
     @staticmethod
     def optimal_weights(n_points, expected_returns, cov):
         """
         Returns a list of weights that represent a grid of n_points on the efficient frontier
         """
         target_returns = np.linspace(expected_returns.min(), expected_returns.max(), n_points)
-        weights = [RiskOptima.minimize_volatility(target_return, expected_returns, cov) for target_return in target_returns]
+        weights = [RiskOptima.minimize_volatility(target_return, expected_returns, cov) 
+                   for target_return in target_returns]
         return weights
-    
-    
+
     @staticmethod
-    def plot_ef(n_points, expected_returns, cov, style='.-', legend=False, show_cml=False, riskfree_rate=0, show_ew=False, show_gmv=False):
+    def plot_ef(n_points, expected_returns, cov, style='.-',
+                legend=False, show_cml=False, riskfree_rate=0, 
+                show_ew=False, show_gmv=False):
         """
         Plots the multi-asset efficient frontier
         """
@@ -470,7 +456,8 @@ class RiskOptima:
             vol_msr = RiskOptima.portfolio_volatility(w_msr, cov)
             cml_x = [0, vol_msr]
             cml_y = [riskfree_rate, r_msr]
-            ax.plot(cml_x, cml_y, color='green', marker='o', linestyle='dashed', linewidth=2, markersize=10)
+            ax.plot(cml_x, cml_y, color='green', marker='o', linestyle='dashed',
+                    linewidth=2, markersize=10)
         if show_ew:
             n = expected_returns.shape[0]
             w_ew = np.repeat(1 / n, n)
@@ -483,13 +470,14 @@ class RiskOptima:
             vol_gmv = RiskOptima.portfolio_volatility(w_gmv, cov)
             ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10)
         return ax
-    
+
     @staticmethod
-    def plot_ef_ax(n_points, expected_returns, cov, style='.-', legend=False, show_cml=False, riskfree_rate=0, show_ew=False, show_gmv=False, ax=None):
+    def plot_ef_ax(n_points, expected_returns, cov, style='.-',
+                   legend=False, show_cml=False, riskfree_rate=0,
+                   show_ew=False, show_gmv=False, ax=None):
         """
         Plots the multi-asset efficient frontier
         """
-        
         weights = RiskOptima.optimal_weights(n_points, expected_returns, cov)
         rets = [RiskOptima.portfolio_return(w, expected_returns) for w in weights]
         volatilities = [RiskOptima.portfolio_volatility(w, cov) for w in weights]
@@ -507,23 +495,26 @@ class RiskOptima:
             vol_msr = RiskOptima.portfolio_volatility(w_msr, cov)
             cml_x = [0, vol_msr]
             cml_y = [riskfree_rate, r_msr]
-            ax.plot(cml_x, cml_y, color='blue', marker='o', linestyle='dashed', linewidth=2, markersize=10, label='Capital Market Line (CML)')
+            ax.plot(cml_x, cml_y, color='blue', marker='o', linestyle='dashed', 
+                    linewidth=2, markersize=10, label='Capital Market Line (CML)')
         if show_ew:
             n = expected_returns.shape[0]
             w_ew = np.repeat(1 / n, n)
             r_ew = RiskOptima.portfolio_return(w_ew, expected_returns)
             vol_ew = RiskOptima.portfolio_volatility(w_ew, cov)
-            ax.plot([vol_ew], [r_ew], color='goldenrod', marker='o', markersize=10, label='Naive portfolio (EWP)')
+            ax.plot([vol_ew], [r_ew], color='goldenrod', marker='o', markersize=10,
+                    label='Naive portfolio (EWP)')
         if show_gmv:
             w_gmv = RiskOptima.global_minimum_volatility(cov)
             r_gmv = RiskOptima.portfolio_return(w_gmv, expected_returns)
             vol_gmv = RiskOptima.portfolio_volatility(w_gmv, cov)
-            ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10, label='Global Minimum-variance Portfolio (GMV)')
-            
+            ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10,
+                    label='Global Minimum-variance Portfolio (GMV)')
         return ax, w_msr, w_gmv
-    
+
     @staticmethod
-    def run_cppi(risky_returns, safe_returns=None, m=3, start=1000, floor=0.8, riskfree_rate=0.03, drawdown=None):
+    def run_cppi(risky_returns, safe_returns=None, m=3, start=1000, floor=0.8,
+                 riskfree_rate=0.03, drawdown=None):
         """
         Run a backtest of the CPPI strategy, given a set of returns for the risky asset
         Returns a dictionary containing: Asset Value History, Risk Budget History, Risky Weight History
@@ -535,16 +526,17 @@ class RiskOptima:
         peak = account_value
         if isinstance(risky_returns, pd.Series): 
             risky_returns = pd.DataFrame(risky_returns, columns=["R"])
-    
+
         if safe_returns is None:
             safe_returns = pd.DataFrame().reindex_like(risky_returns)
             safe_returns.values[:] = riskfree_rate / 12
+
         account_history = pd.DataFrame().reindex_like(risky_returns)
         risky_w_history = pd.DataFrame().reindex_like(risky_returns)
         cushion_history = pd.DataFrame().reindex_like(risky_returns)
         floorval_history = pd.DataFrame().reindex_like(risky_returns)
         peak_history = pd.DataFrame().reindex_like(risky_returns)
-    
+
         for step in range(n_steps):
             if drawdown is not None:
                 peak = np.maximum(peak, account_value)
@@ -562,6 +554,7 @@ class RiskOptima:
             account_history.iloc[step] = account_value
             floorval_history.iloc[step] = floor_value
             peak_history.iloc[step] = peak
+
         risky_wealth = start * (1 + risky_returns).cumprod()
         backtest_result = {
             "Wealth": account_history,
@@ -578,7 +571,7 @@ class RiskOptima:
             "floorval_history": floorval_history
         }
         return backtest_result
-    
+
     @staticmethod
     def summary_stats(returns, riskfree_rate=0.03):
         """
@@ -602,9 +595,10 @@ class RiskOptima:
             "Sharpe Ratio": ann_sr,
             "Max Drawdown": dd
         })
-    
+
     @staticmethod
-    def gbm(n_years=10, n_scenarios=1000, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0, prices=True):
+    def gbm(n_years=10, n_scenarios=1000, mu=0.07, sigma=0.15,
+            steps_per_year=12, s_0=100.0, prices=True):
         """
         Evolution of Geometric Brownian Motion trajectories, such as for Stock Prices through Monte Carlo
         :param n_years:  The number of years to generate data for
@@ -621,7 +615,7 @@ class RiskOptima:
         rets_plus_1[0] = 1
         ret_val = s_0 * pd.DataFrame(rets_plus_1).cumprod() if prices else rets_plus_1 - 1
         return ret_val
-    
+
     @staticmethod
     def regress(dependent_variable, explanatory_variables, alpha=True):
         """
@@ -638,7 +632,7 @@ class RiskOptima:
         
         lm = sm.OLS(dependent_variable, explanatory_variables).fit()
         return lm
-    
+
     @staticmethod
     def portfolio_tracking_error(weights, ref_returns, bb_returns):
         """
@@ -646,7 +640,7 @@ class RiskOptima:
         and a portfolio of building block returns held with given weights
         """
         return RiskOptima.tracking_error(ref_returns, (weights * bb_returns).sum(axis=1))
-    
+
     @staticmethod
     def style_analysis(dependent_variable, explanatory_variables):
         """
@@ -657,10 +651,15 @@ class RiskOptima:
         init_guess = np.repeat(1 / n, n)
         bounds = ((0.0, 1.0),) * n
         weights_sum_to_1 = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
-        solution = minimize(RiskOptima.portfolio_tracking_error, init_guess, args=(dependent_variable, explanatory_variables,), method='SLSQP', options={'disp': False}, constraints=(weights_sum_to_1,), bounds=bounds)
+        solution = minimize(RiskOptima.portfolio_tracking_error,
+                            init_guess, 
+                            args=(dependent_variable, explanatory_variables,),
+                            method='SLSQP', options={'disp': False},
+                            constraints=(weights_sum_to_1,),
+                            bounds=bounds)
         weights = pd.Series(solution.x, index=explanatory_variables.columns)
         return weights
-    
+
     @staticmethod
     def ff_analysis(returns, factors):
         """
@@ -678,7 +677,7 @@ class RiskOptima:
         else:
             raise TypeError("returns must be a Series or a DataFrame")
         return tilts
-    
+
     @staticmethod
     def weight_ew(returns, cap_weights=None, max_cw_mult=None, microcap_threshold=None, **kwargs):
         """
@@ -697,7 +696,7 @@ class RiskOptima:
                 ew = np.minimum(ew, cw * max_cw_mult)
                 ew = ew / ew.sum()
         return ew
-    
+
     @staticmethod
     def weight_cw(returns, cap_weights, **kwargs):
         """
@@ -705,7 +704,7 @@ class RiskOptima:
         """
         w = cap_weights.loc[returns.index[0]]
         return w / w.sum()
-    
+
     @staticmethod
     def backtest_ws(returns, estimation_window=60, weighting=weight_ew, verbose=False, **kwargs):
         """
@@ -720,14 +719,14 @@ class RiskOptima:
         weights = pd.DataFrame(weights, index=returns.iloc[estimation_window:].index, columns=returns.columns)
         portfolio_returns = (weights * returns).sum(axis="columns", min_count=1)
         return portfolio_returns
-    
+
     @staticmethod
     def sample_covariance(returns, **kwargs):
         """
         Returns the sample covariance of the supplied returns
         """
         return returns.cov()
-    
+
     @staticmethod
     def weight_gmv(returns, cov_estimator=sample_covariance, **kwargs):
         """
@@ -735,7 +734,7 @@ class RiskOptima:
         """
         est_cov = cov_estimator(returns, **kwargs)
         return RiskOptima.global_minimum_volatility(est_cov)
-    
+
     @staticmethod
     def cc_covariance(returns, **kwargs):
         """
@@ -752,12 +751,13 @@ class RiskOptima:
     @staticmethod
     def shrinkage_covariance(returns, delta=0.5, **kwargs):
         """
-        Covariance estimator that shrinks between the Sample Covariance and the Constant Correlation Estimators
+        Covariance estimator that shrinks between the 
+        Sample Covariance and the Constant Correlation Estimators
         """
         prior = RiskOptima.cc_covariance(returns, **kwargs)
         sample = RiskOptima.sample_covariance(returns, **kwargs)
         return delta * prior + (1 - delta) * sample
-    
+
     @staticmethod
     def risk_contribution(weights, cov):
         """
@@ -767,7 +767,7 @@ class RiskOptima:
         marginal_contrib = cov @ weights
         risk_contrib = np.multiply(marginal_contrib, weights.T) / total_portfolio_var
         return risk_contrib
-    
+
     @staticmethod
     def target_risk_contributions(target_risk, cov):
         """
@@ -779,12 +779,16 @@ class RiskOptima:
         init_guess = np.repeat(1 / n, n)
         bounds = ((0.0, 1.0),) * n
         weights_sum_to_1 = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
+
         def msd_risk(weights, target_risk, cov):
             w_contribs = RiskOptima.risk_contribution(weights, cov)
             return ((w_contribs - target_risk)**2).sum()
-        weights = minimize(msd_risk, init_guess, args=(target_risk, cov), method='SLSQP', options={'disp': False}, constraints=(weights_sum_to_1,), bounds=bounds)
+
+        weights = minimize(msd_risk, init_guess, args=(target_risk, cov),
+                           method='SLSQP', options={'disp': False},
+                           constraints=(weights_sum_to_1,), bounds=bounds)
         return weights.x
-    
+
     @staticmethod
     def equal_risk_contributions(cov):
         """
@@ -793,7 +797,7 @@ class RiskOptima:
         """
         n = cov.shape[0]
         return RiskOptima.target_risk_contributions(target_risk=np.repeat(1 / n, n), cov=cov)
-    
+
     @staticmethod
     def weight_erc(returns, cov_estimator=sample_covariance, **kwargs):
         """
@@ -801,7 +805,7 @@ class RiskOptima:
         """
         est_cov = cov_estimator(returns, **kwargs)
         return RiskOptima.equal_risk_contributions(est_cov)
-    
+
     @staticmethod
     def discount(t, r):
         """
@@ -814,7 +818,7 @@ class RiskOptima:
         discounts = pd.DataFrame([(r+1)**-i for i in t])
         discounts.index = t
         return discounts
-    
+
     @staticmethod
     def pv(flows, r):
         """
@@ -824,28 +828,28 @@ class RiskOptima:
         dates = flows.index
         discounts = RiskOptima.discount(dates, r)
         return discounts.multiply(flows, axis='rows').sum()
-    
+
     @staticmethod
     def funding_ratio(assets, liabilities, r):
         """
         Computes the funding ratio of a series of liabilities, based on an interest rate and current value of assets
         """
         return RiskOptima.pv(assets, r)/RiskOptima.pv(liabilities, r)
-    
+
     @staticmethod
     def inst_to_ann(r):
         """
         Convert an instantaneous interest rate to an annual interest rate
         """
         return np.expm1(r)
-    
+
     @staticmethod
     def ann_to_inst(r):
         """
         Convert an instantaneous interest rate to an annual interest rate
         """
         return np.log1p(r)
-    
+
     @staticmethod
     def cir(n_years = 10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_per_year=12, r_0=None):
         """
@@ -853,7 +857,8 @@ class RiskOptima:
         b and r_0 are assumed to be the annualized rates, not the short rate
         and the returned values are the annualized rates as well
         """
-        if r_0 is None: r_0 = b 
+        if r_0 is None: 
+            r_0 = b
         r_0 = RiskOptima.ann_to_inst(r_0)
         dt = 1/steps_per_year
         num_steps = int(n_years*steps_per_year) + 1 # because n_years might be a float
@@ -865,29 +870,26 @@ class RiskOptima:
         ## For Price Generation
         h = math.sqrt(a**2 + 2*sigma**2)
         prices = np.empty_like(shock)
-        ####
-    
+
         def price(ttm, r):
             _A = ((2*h*math.exp((h+a)*ttm/2))/(2*h+(h+a)*(math.exp(h*ttm)-1)))**(2*a*b/sigma**2)
             _B = (2*(math.exp(h*ttm)-1))/(2*h + (h+a)*(math.exp(h*ttm)-1))
             _P = _A*np.exp(-_B*r)
             return _P
+
         prices[0] = price(n_years, r_0)
-        ####
-        
+
         for step in range(1, num_steps):
             r_t = rates[step-1]
             d_r_t = a*(b-r_t)*dt + sigma*np.sqrt(r_t)*shock[step]
             rates[step] = abs(r_t + d_r_t)
             # generate prices at time t as well ...
             prices[step] = price(n_years-step*dt, rates[step])
-    
+
         rates = pd.DataFrame(data=RiskOptima.inst_to_ann(rates), index=range(num_steps))
-        ### for prices
         prices = pd.DataFrame(data=prices, index=range(num_steps))
-        ###
         return rates, prices
-    
+
     @staticmethod
     def bond_cash_flows(maturity, principal=100, coupon_rate=0.03, coupons_per_year=12):
         """
@@ -900,7 +902,7 @@ class RiskOptima:
         cash_flows = pd.Series(data=coupon_amt, index=coupon_times)
         cash_flows.iloc[-1] += principal
         return cash_flows
-        
+
     @staticmethod
     def bond_price(maturity, principal=100, coupon_rate=0.03, coupons_per_year=12, discount_rate=0.03):
         """
@@ -916,14 +918,18 @@ class RiskOptima:
             pricing_dates = discount_rate.index
             prices = pd.DataFrame(index=pricing_dates, columns=discount_rate.columns)
             for t in pricing_dates:
-                prices.loc[t] = RiskOptima.bond_price(maturity-t/coupons_per_year, principal, coupon_rate, coupons_per_year,
-                                          discount_rate.loc[t])
+                prices.loc[t] = RiskOptima.bond_price(maturity-t/coupons_per_year,
+                                                      principal, coupon_rate,
+                                                      coupons_per_year,
+                                                      discount_rate.loc[t])
             return prices
-        else: # base case ... single time period
-            if maturity <= 0: return principal+principal*coupon_rate/coupons_per_year
-            cash_flows = RiskOptima.bond_cash_flows(maturity, principal, coupon_rate, coupons_per_year)
+        else:
+            if maturity <= 0:
+                return principal+principal*coupon_rate/coupons_per_year
+            cash_flows = RiskOptima.bond_cash_flows(maturity, principal,
+                                                    coupon_rate, coupons_per_year)
             return RiskOptima.pv(cash_flows, discount_rate/coupons_per_year)
-    
+
     @staticmethod
     def macaulay_duration(flows, discount_rate):
         """
@@ -932,7 +938,7 @@ class RiskOptima:
         discounted_flows = RiskOptima.discount(flows.index, discount_rate)*flows
         weights = discounted_flows/discounted_flows.sum()
         return np.average(flows.index, weights=weights)
-    
+
     @staticmethod
     def match_durations(cf_t, cf_s, cf_l, discount_rate):
         """
