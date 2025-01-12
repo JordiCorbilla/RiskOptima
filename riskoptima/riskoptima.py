@@ -942,14 +942,14 @@ class RiskOptima:
     @staticmethod
     def match_durations(cf_t, cf_s, cf_l, discount_rate):
         """
-        Returns the weight W in cf_s that, along with (1-W) in cf_l will have an effective
-        duration that matches cf_t
+        Returns the weight W in cf_s that, along with (1-W) in cf_l 
+        will have an effective duration that matches cf_t
         """
         d_t = RiskOptima.macaulay_duration(cf_t, discount_rate)
         d_s = RiskOptima.macaulay_duration(cf_s, discount_rate)
         d_l = RiskOptima.macaulay_duration(cf_l, discount_rate)
         return (d_l - d_t)/(d_l - d_s)
-    
+
     @staticmethod
     def bond_total_return(monthly_prices, principal, coupon_rate, coupons_per_year):
         """
@@ -963,7 +963,7 @@ class RiskOptima:
         coupons.iloc[pay_date] = principal*coupon_rate/coupons_per_year
         total_returns = (monthly_prices + coupons)/monthly_prices.shift()-1
         return total_returns.dropna()
-    
+
     @staticmethod
     def bt_mix(r1, r2, allocator, **kwargs):
         """
@@ -980,7 +980,7 @@ class RiskOptima:
             raise ValueError("Allocator returned weights with a different shape than the returns")
         r_mix = weights*r1 + (1-weights)*r2
         return r_mix
-    
+
     @staticmethod
     def fixedmix_allocator(r1, r2, w1, **kwargs):
         """
@@ -999,7 +999,7 @@ class RiskOptima:
         Return a Series of length N indexed by the columns of rets
         """
         return (rets+1).prod()
-    
+
     @staticmethod
     def terminal_stats(rets, floor = 0.8, cap=np.inf, name="Stats"):
         """
@@ -1024,7 +1024,7 @@ class RiskOptima:
             "e_surplus": e_surplus
         }, orient="index", columns=[name])
         return sum_stats
-    
+
     @staticmethod
     def glidepath_allocator(r1, r2, start_glide=1, end_glide=0.0):
         """
@@ -1038,7 +1038,7 @@ class RiskOptima:
         paths.index = r1.index
         paths.columns = r1.columns
         return paths
-    
+
     @staticmethod
     def floor_allocator(psp_r, ghp_r, floor, zc_prices, m=3):
         """
@@ -1065,7 +1065,7 @@ class RiskOptima:
             account_value = psp_alloc*(1+psp_r.iloc[step]) + ghp_alloc*(1+ghp_r.iloc[step])
             w_history.iloc[step] = psp_w
         return w_history
-    
+
     @staticmethod
     def drawdown_allocator(psp_r, ghp_r, maxdd, m=3):
         """
@@ -1095,7 +1095,7 @@ class RiskOptima:
             peak_value = np.maximum(peak_value, account_value) ### For MaxDD
             w_history.iloc[step] = psp_w
         return w_history
-    
+
     @staticmethod
     def discount_v2(t, r, freq):
         """
@@ -1103,42 +1103,51 @@ class RiskOptima:
         and r is the per-period interest rate
         returns a DataFrame indexed by t
         """
-        discounts = pd.DataFrame([(1 + r / freq) ** -(t * freq) for t in t], index=t, columns=['df'])
+        discounts = pd.DataFrame([(1 + r / freq) ** -(t * freq) for t in t], 
+                                 index=t, columns=['df'])
         return discounts
-    
+
     @staticmethod
     def bond_cash_flows_v2(n_periods, par, coupon_rate, freq):
-        """Generate bond cash flows"""
+        """
+        Generate bond cash flows
+        """
         coupon = par * coupon_rate / freq
         cash_flows = np.full(n_periods, coupon)
         cash_flows[-1] += par
         return cash_flows
-    
+
     @staticmethod
     def bond_price_v2(cash_flows, yield_rate, freq):
-        """Calculate the price of the bond"""
+        """
+        Calculate the price of the bond
+        """
         n = len(cash_flows)
         times = np.arange(1, n + 1) / freq
         discount_factors = RiskOptima.discount(times, yield_rate).values.flatten()
         present_values = cash_flows * discount_factors
         return sum(present_values)
-    
+
     @staticmethod
     def macaulay_duration_v2(cash_flows, yield_rate, freq):
-        """Calculate the Macaulay Duration"""
+        """
+        Calculate the Macaulay Duration
+        """
         n = len(cash_flows)
         times = np.arange(1, n + 1) / freq
         discount_factors = RiskOptima.discount(times, yield_rate).values.flatten()
         present_values = cash_flows * discount_factors
-        
+
         weighted_sum = sum(times * present_values)
         total_present_value = sum(present_values)
-        
+
         return weighted_sum / total_present_value
-    
+
     @staticmethod
     def macaulay_duration_v3(cash_flows, yield_rate, freq):
-        """Calculate the Macaulay Duration and output the detailed table"""
+        """
+        Calculate the Macaulay Duration and output the detailed table
+        """
         n = len(cash_flows)
         times = np.arange(1, n + 1) / freq
         discount_factors = RiskOptima.discount_v2(times, yield_rate, freq).values.flatten()
@@ -1146,8 +1155,7 @@ class RiskOptima:
         total_present_value = sum(present_values)
         weights = present_values / total_present_value
         weighted_average_times = times * weights
-        
-        # Create the DataFrame
+
         df = pd.DataFrame({
             't': times,
             'df': discount_factors,
@@ -1156,8 +1164,7 @@ class RiskOptima:
             'weight': weights,
             'wat': weighted_average_times
         })
-        
-        # Add the totals row
+
         totals = pd.DataFrame({
             't': ['Total'],
             'df': [''],
@@ -1166,11 +1173,11 @@ class RiskOptima:
             'weight': [sum(weights)],
             'wat': [sum(weighted_average_times)]
         })
-        
+
         df = pd.concat([df, totals], ignore_index=True)
-        
+
         return df
-    
+
     @staticmethod
     def calculate_statistics(data, risk_free_rate=0.0):
         """
@@ -1183,14 +1190,12 @@ class RiskOptima:
         :return: daily_returns (DataFrame), cov_matrix (DataFrame)
         """
         daily_returns = data.pct_change(fill_method=None).dropna()
-        
         cov_matrix = daily_returns.cov()
-        
         return daily_returns, cov_matrix
-    
+
     @staticmethod
-    def run_monte_carlo_simulation(daily_returns, cov_matrix, num_portfolios=100_000, 
-                                   risk_free_rate=0.0):
+    def run_monte_carlo_simulation(daily_returns, cov_matrix, 
+                                   num_portfolios=100_000, risk_free_rate=0.0):
         """
         Runs the Monte Carlo simulation to generate a large number of random portfolios,
         calculates their performance metrics (annualized return, volatility, Sharpe ratio),
@@ -1202,15 +1207,14 @@ class RiskOptima:
         :param risk_free_rate: Risk-free rate to be used in Sharpe ratio calculation.
         :return: (simulated_portfolios, weights_record)
         """
-        
         results = np.zeros((4, num_portfolios))
         weights_record = np.zeros((len(daily_returns.columns), num_portfolios))
-        
+
         for i in range(num_portfolios):
             weights = np.random.random(len(daily_returns.columns))
             weights /= np.sum(weights)
             weights_record[:, i] = weights
-    
+
             portfolio_return = np.sum(weights * daily_returns.mean()) * RiskOptima.TRADING_DAYS
     
             portfolio_stddev = np.sqrt(
@@ -1218,17 +1222,15 @@ class RiskOptima:
             ) * np.sqrt(RiskOptima.TRADING_DAYS)
     
             sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_stddev
-    
             results[0, i] = portfolio_return
             results[1, i] = portfolio_stddev
             results[2, i] = sharpe_ratio
             results[3, i] = i
-    
+
         columns = ['Return', 'Volatility', 'Sharpe Ratio', 'Simulation']
         simulated_portfolios = pd.DataFrame(results.T, columns=columns)
-        
         return simulated_portfolios, weights_record
-    
+
     @staticmethod
     def get_market_statistics(market_ticker, start_date, end_date, risk_free_rate=0.0):
         """
@@ -1236,25 +1238,23 @@ class RiskOptima:
         annualized return, annualized volatility, and Sharpe ratio.
         """
         market_data = yf.download([market_ticker], start=start_date, end=end_date, progress=False)['Close']
-        
         if isinstance(market_data, pd.DataFrame):
             market_data = market_data[market_ticker] 
-        
         market_daily_returns = market_data.pct_change(fill_method=None).dropna()
-    
+
         market_return = market_daily_returns.mean() * RiskOptima.TRADING_DAYS
         market_volatility = market_daily_returns.std(axis=0) * np.sqrt(RiskOptima.TRADING_DAYS)
         market_sharpe_ratio = (market_return - risk_free_rate) / market_volatility
-    
+
         if hasattr(market_return, 'iloc'):
             market_return = market_return.iloc[0]
         if hasattr(market_volatility, 'iloc'):
             market_volatility = market_volatility.iloc[0]
         if hasattr(market_sharpe_ratio, 'iloc'):
             market_sharpe_ratio = market_sharpe_ratio.iloc[0]
-    
+
         return market_return, market_volatility, market_sharpe_ratio
-    
+
     @staticmethod
     def portfolio_performance(weights, mean_returns, cov_matrix, trading_days=252):
         """
@@ -1263,14 +1263,14 @@ class RiskOptima:
         returns = np.sum(mean_returns * weights) * trading_days
         volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(trading_days)
         return returns, volatility
-    
+
     @staticmethod
     def min_volatility(weights, mean_returns, cov_matrix):
         """
         Objective function: we want to minimize volatility.
         """
         return RiskOptima.portfolio_performance(weights, mean_returns, cov_matrix)[1]
-    
+
     @staticmethod
     def efficient_frontier(mean_returns, cov_matrix, num_points=50):
         """
@@ -1280,17 +1280,15 @@ class RiskOptima:
         """
         results = []
         target_returns = np.linspace(mean_returns.min(), mean_returns.max(), num_points)
-        
         num_assets = len(mean_returns)
         init_guess = num_assets * [1. / num_assets,]
         bounds = tuple((0,1) for _ in range(num_assets))
-        
+
         for ret in target_returns:
             constraints = (
                 {'type':'eq', 'fun': lambda w: np.sum(w) - 1}, 
                 {'type':'eq', 'fun': lambda w: RiskOptima.portfolio_performance(w, mean_returns, cov_matrix)[0] - ret}
             )
-            
             result = minimize(RiskOptima.min_volatility, 
                               init_guess, 
                               args=(mean_returns, cov_matrix),
@@ -1300,15 +1298,13 @@ class RiskOptima:
             if result.success:
                 vol = RiskOptima.portfolio_performance(result.x, mean_returns, cov_matrix)[1]
                 results.append((vol, ret, result.x))
-        
+
         results = sorted(results, key=lambda x: x[0])
-        
         frontier_volatility = [res[0] for res in results]
         frontier_returns = [res[1] for res in results]
         frontier_weights = [res[2] for res in results]
-        
         return frontier_volatility, frontier_returns, frontier_weights
-    
+
     @staticmethod
     def get_previous_working_day():
         """
@@ -1324,7 +1320,7 @@ class RiskOptima:
         elif today.weekday() == 6:    # Sunday
             today -= timedelta(days=2)
         return today.strftime('%Y-%m-%d')
-    
+
     @staticmethod
     def calculate_portfolio_allocation(investment_allocation):
         """
@@ -1337,7 +1333,7 @@ class RiskOptima:
         normalized_weights = np.array([amount / total_investment for amount in investment_allocation.values()])
         tickers = list(investment_allocation.keys())
         return tickers, normalized_weights
-    
+
     @staticmethod
     def fetch_historical_stock_prices(tickers, start_date, end_date):
         """
@@ -1350,9 +1346,14 @@ class RiskOptima:
         """
         stock_data = yf.download(tickers, start=start_date, end=end_date, progress=False)
         return stock_data
-    
+
     @staticmethod
-    def perform_mean_variance_optimization(tickers, start_date, end_date, max_acceptable_volatility, predefined_returns=None, min_allocation=0.01, max_allocation=0.35, num_simulations=100000):
+    def perform_mean_variance_optimization(tickers, start_date, end_date,
+                                           max_acceptable_volatility,
+                                           predefined_returns=None,
+                                           min_allocation=0.01,
+                                           max_allocation=0.35,
+                                           num_simulations=100000):
         """
         Execute mean-variance optimization using Monte Carlo simulation with weight constraints.
     
@@ -1366,49 +1367,41 @@ class RiskOptima:
         :param int num_simulations: Number of Monte Carlo simulations to run.
         :return: Optimal portfolio weights as a numpy array.
         """
-        # Fetch historical stock price data
         price_data = RiskOptima.fetch_historical_stock_prices(tickers, start_date, end_date)['Close']
         if price_data.empty:
             raise ValueError("No historical data retrieved. Verify the tickers and date range.")
-    
-        # Calculate daily returns
+
         daily_returns = price_data.pct_change(fill_method=None).dropna()
-    
-        # Calculate expected annualized returns if not provided
+
         if predefined_returns is None:
             predefined_returns = daily_returns.mean() * RiskOptima.TRADING_DAYS
-    
-        # Compute the annualized covariance matrix
+
         covariance_matrix = daily_returns.cov() * RiskOptima.TRADING_DAYS
-    
         simulation_results = np.zeros((4, num_simulations))
         weight_matrix = np.zeros((len(tickers), num_simulations))
-    
-        # Perform Monte Carlo simulations
+
         for i in range(num_simulations):
             random_weights = np.random.uniform(min_allocation, max_allocation, len(tickers))
             random_weights /= np.sum(random_weights)
-    
+
             weight_matrix[:, i] = random_weights
-    
+
             portfolio_return = np.sum(random_weights * predefined_returns)
             portfolio_volatility = np.sqrt(np.dot(random_weights.T, np.dot(covariance_matrix, random_weights)))
             sharpe_ratio = portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0
-    
+
             simulation_results[:, i] = [portfolio_return, portfolio_volatility, sharpe_ratio, i]
-    
+
         result_columns = ['Annualized Return', 'Annualized Volatility', 'Sharpe Ratio', 'Simulation Index']
         simulation_results_df = pd.DataFrame(simulation_results.T, columns=result_columns)
-    
+
         feasible_portfolios = simulation_results_df[simulation_results_df['Annualized Volatility'] <= max_acceptable_volatility]
-    
         if feasible_portfolios.empty:
             raise ValueError("No portfolio satisfies the maximum volatility constraint.")
-    
+
         optimal_index = feasible_portfolios['Sharpe Ratio'].idxmax()
-    
         return weight_matrix[:, int(optimal_index)]
-  
+
     @staticmethod
     def add_features(stock_prices):
         """
@@ -1421,8 +1414,7 @@ class RiskOptima:
         features['10_day_avg'] = stock_prices.rolling(window=10).mean()
         features['Close'] = stock_prices
         return features
-    
-    
+
     @staticmethod
     def create_lagged_features(data, lag_days=5):
         """
@@ -1436,7 +1428,7 @@ class RiskOptima:
             lagged_data[f'lag_{lag}'] = lagged_data['Close'].shift(lag)
         lagged_data.dropna(inplace=True)
         return lagged_data
-    
+
     @staticmethod
     def evaluate_model(model, X, y):
         """
@@ -1451,7 +1443,7 @@ class RiskOptima:
         predictions = model.predict(X)
         mse = mean_squared_error(y, predictions)
         return np.mean(cv_scores), mse
-    
+
     @staticmethod
     def predict_with_model(model, feature_data):
         """
@@ -1476,24 +1468,21 @@ class RiskOptima:
         :param model_type: Choice of machine learning model ('Linear Regression', 'Random Forest', 'Gradient Boosting').
         :return: Tuple of predicted return and model confidence.
         """
-        # Fetch and preprocess stock data
         stock_prices = RiskOptima.download_data_yfinance(ticker, start_date, end_date)
         enriched_data = RiskOptima.add_features(stock_prices)
         prepared_data = RiskOptima.create_lagged_features(enriched_data)
-    
-        # Separate features and target variable
+
         X = prepared_data.drop('Close', axis=1)
         y = prepared_data['Close']
-    
-        # Split data into training and testing sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-        # Impute missing values
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y,
+                                                            test_size=0.2,
+                                                            random_state=42)
+
         imputer = SimpleImputer(strategy='mean')
         X_train = imputer.fit_transform(X_train)
         X_test = imputer.transform(X_test)
-    
-        # Select machine learning model
+
         if model_type == 'Random Forest':
             model = RandomForestRegressor(n_estimators=100, random_state=42)
         elif model_type == 'Gradient Boosting':
@@ -1509,14 +1498,12 @@ class RiskOptima:
     
         # Train and evaluate the model
         avg_cv_score, mse = RiskOptima.evaluate_model(model, X_train, y_train)
-    
-        # Predict future returns
         predicted_return = RiskOptima.predict_with_model(model, X_test)
-        
         return predicted_return, avg_cv_score
-    
+
     @staticmethod
-    def black_litterman_adjust_returns(market_returns, investor_views, view_confidences, historical_prices, tau=0.025):
+    def black_litterman_adjust_returns(market_returns, investor_views, view_confidences,
+                                       historical_prices, tau=0.025):
         """
         Adjust market returns based on investor views and their confidences using the Black-Litterman model.
     
@@ -1528,28 +1515,21 @@ class RiskOptima:
         :return: Numpy array of adjusted returns for each asset.
         """
         num_assets = len(market_returns)
-    
-        # Create proportion matrix P and views vector Q
-        proportion_matrix = np.eye(num_assets)  # Identity matrix for simplicity
+        proportion_matrix = np.eye(num_assets)
         views_vector = np.array(list(investor_views.values())).reshape(-1, 1)
-    
-        # Compute the covariance matrix from historical prices
         covariance_matrix = historical_prices['Close'].pct_change(fill_method=None).dropna().cov()
-    
-        # Compute Omega (diagonal matrix of view confidences)
         omega_matrix = np.diag([tau / confidence for confidence in view_confidences.values()])
-    
-        # Apply the Black-Litterman formula
+
         inv_tau_cov = np.linalg.inv(tau * covariance_matrix)
         inv_omega = np.linalg.inv(omega_matrix)
-    
+
         adjusted_returns = np.linalg.inv(inv_tau_cov + proportion_matrix.T @ inv_omega @ proportion_matrix)
         adjusted_returns = adjusted_returns @ (
-            inv_tau_cov @ np.array(list(market_returns.values())).reshape(-1, 1) + proportion_matrix.T @ inv_omega @ views_vector
+            inv_tau_cov @ np.array(list(market_returns.values())).reshape(-1, 1) +
+            proportion_matrix.T @ inv_omega @ views_vector
         )
-    
         return adjusted_returns.flatten()
-    
+
     @staticmethod
     def compute_market_returns(market_capitalizations, market_index_return):
         """
@@ -1564,7 +1544,7 @@ class RiskOptima:
             ticker: (cap / total_market_cap) * market_index_return
             for ticker, cap in market_capitalizations.items()
         }
-    
+
     @staticmethod
     def sortino_ratio(returns, risk_free_rate):
         """
@@ -1583,8 +1563,8 @@ class RiskOptima:
         # Return 0 if downside standard deviation is zero
         if (annualized_downside_std_dev == 0).all():  # Use `.all()` for Series comparison
             return 0.0
-    
         return annualized_excess_return / annualized_downside_std_dev
+
     @staticmethod
     def information_ratio(returns, benchmark_returns):
         """
@@ -1594,18 +1574,16 @@ class RiskOptima:
         :param benchmark_returns: pandas Series or numpy array of benchmark returns.
         :return: float Information Ratio.
         """
-        # Ensure inputs are Series
         if isinstance(returns, pd.DataFrame):
             if returns.shape[1] > 1:
                 raise ValueError("`returns` must be a pandas Series or 1D numpy array, not a DataFrame with multiple columns.")
             returns = returns.squeeze()
-    
+
         if isinstance(benchmark_returns, pd.DataFrame):
             if benchmark_returns.shape[1] > 1:
                 raise ValueError("`benchmark_returns` must be a pandas Series or 1D numpy array, not a DataFrame with multiple columns.")
             benchmark_returns = benchmark_returns.squeeze()
-    
-        # Ensure alignment of indices
+
         common_index = returns.index.intersection(benchmark_returns.index)
         returns = returns.loc[common_index]
         benchmark_returns = benchmark_returns.loc[common_index]
