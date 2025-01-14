@@ -1306,6 +1306,30 @@ class RiskOptima:
         return frontier_volatility, frontier_returns, frontier_weights
 
     @staticmethod
+    def get_previous_year_date(end_date, years):
+        """
+        Calculates the start date by subtracting a given number of years from the end_date,
+        ensuring that the start date is a working day (Monday-Friday).
+
+        Args:
+            end_date (str): The end date in 'YYYY-MM-DD' format.
+            years (int): The number of years to go back.
+
+        Returns:
+            str: The calculated start date in 'YYYY-MM-DD' format, adjusted to a working day.
+        """
+        end_date_obj = date.fromisoformat(end_date)
+        start_date = end_date_obj.replace(year=end_date_obj.year - years)
+
+        # Adjust to the most recent working day if it falls on a weekend
+        if start_date.weekday() == 5:  # Saturday
+            start_date -= timedelta(days=1)
+        elif start_date.weekday() == 6:  # Sunday
+            start_date -= timedelta(days=2)
+
+        return start_date.strftime('%Y-%m-%d')
+
+    @staticmethod
     def get_previous_working_day():
         """
         Returns the most recent weekday date in 'YYYY-MM-DD' format.
@@ -1839,7 +1863,7 @@ class RiskOptima:
         portfolio_df.set_index("Security", inplace=True)
         portfolio_df = portfolio_df.apply(lambda col: col.map(lambda x: f"{x * 100:.2f}%"))
 
-        RiskOptima.add_table_to_plot(ax, portfolio_df, x=x_pos_table, y=y_pos_table, column_width=0.70)
+        RiskOptima.add_table_to_plot(ax, portfolio_df, x=x_pos_table, y=y_pos_table, column_width=0.70, fontsize=9)
 
         titles = [
             "My Current\nPortfolio",
@@ -1870,7 +1894,7 @@ class RiskOptima:
             spine.set_edgecolor('black')
 
         stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
-        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30, column_width=0.70)
+        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30, column_width=0.70, fontsize=9)
         RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
 
         plt.tight_layout()
@@ -2024,7 +2048,7 @@ class RiskOptima:
             RiskOptima.calculate_performance_metrics(market_returns, market_returns, risk_free_rate, final_returns_market, True)
         ]
         stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
-        RiskOptima.add_table_to_plot(ax, stats_df, None, column_colors, x=1.02, y=0.30)
+        RiskOptima.add_table_to_plot(ax, stats_df, None, column_colors, x=1.02, y=0.30, fontsize=9)
 
 
     @staticmethod
@@ -2174,3 +2198,63 @@ class RiskOptima:
             "market_volatility": market_vol,
             "market_sharpe_ratio": market_sharpe_ratio
         }
+
+    @staticmethod
+    def plot_weights_table(initial_weights, optimal_weights, labels, ax):
+        """Plot Table 1: Weights Comparison Table."""
+        df_weights = pd.DataFrame(columns=["Fund", "Current Weights", "Optimal Weights"])
+        if initial_weights is not None and optimal_weights is not None:
+            curr_w_str = [f"{w*100:.2f}%" for w in initial_weights]
+            opt_w_str = [f"{w*100:.2f}%" for w in optimal_weights]
+            for label, cw, ow in zip(labels, curr_w_str, opt_w_str):
+                df_weights.loc[len(df_weights)] = [label, cw, ow]
+        df_weights.set_index("Fund", inplace=True)
+        RiskOptima.add_table_to_plot(
+            ax, df_weights, x=1.02, y=0.52, column_width=0.40, fontsize=9
+        )
+
+    @staticmethod
+    def plot_performance_table(portfolio_metrics, benchmark_index, market_data, risk_free_rate, ax):
+        """Plot Table 2: Performance Metrics Table."""
+        market_expected_return, market_volatility, market_sharpe_ratio = market_data
+        perf_data = []
+        for portfolio_name, (mean_val, vol_val) in portfolio_metrics.items():
+            sharpe_val = (mean_val - risk_free_rate) / vol_val if vol_val != 0 else 0
+            perf_data.append([
+                portfolio_name,
+                f"{mean_val*100:.2f}%",
+                f"{vol_val*100:.2f}%",
+                f"{sharpe_val:.2f}"
+            ])
+        perf_data.append([
+            benchmark_index,
+            f"{market_expected_return*100:.2f}%",
+            f"{market_volatility*100:.2f}%",
+            f"{market_sharpe_ratio:.2f}"
+        ])
+        df_perf = pd.DataFrame(perf_data, columns=["Portfolio", "Mean%", "Vol%", "Sharpe"])
+        df_perf.set_index("Portfolio", inplace=True)
+        RiskOptima.add_table_to_plot(
+            ax, df_perf, x=1.02, y=0.28, column_width=0.40, fontsize=9
+        )
+
+    @staticmethod
+    def plot_probability_table(portfolio_results, market_final_values, ax):
+        """Plot Table 3: Probability Comparison Table."""
+        optimized_vals = portfolio_results.get("Optimized Portfolio", [])
+        current_vals = portfolio_results.get("Current Portfolio", [])
+        prob_text_data = []
+    
+        if optimized_vals and current_vals:
+            p_beat_current = sum(np.array(optimized_vals) > np.array(current_vals)) / len(optimized_vals)
+            prob_text_data.append(["Prob(Optimized > Current)", f"{p_beat_current:.2%}"])
+    
+        if optimized_vals and market_final_values:
+            p_beat_market = sum(np.array(optimized_vals) > np.array(market_final_values)) / len(optimized_vals)
+            prob_text_data.append(["Prob(Optimized > Market)", f"{p_beat_market:.2%}"])
+    
+        df_prob = pd.DataFrame(prob_text_data, columns=["Description", "Value"])
+        df_prob.set_index("Description", inplace=True)
+        RiskOptima.add_table_to_plot(
+            ax, df_prob, x=1.02, y=0.12, column_width=0.40, fontsize=9
+        )
