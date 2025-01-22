@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "riskoptima"
-version = "1.10.0"
+version = "1.11.0"
 description = "The RiskOptima toolkit is a comprehensive Python solution designed to assist investors in evaluating, managing, and optimizing the risk of their investment portfolios. This package implements advanced financial metrics and models to compute key risk indicators, including Value at Risk (VaR), Conditional Value at Risk (CVaR), and volatility assessment"
 authors = ["Jordi Corbilla <jordi.coll.corbilla@gmail.com>"]
 license = "MIT"
@@ -20,6 +20,7 @@ matplotlib = ">=3.8.4"
 scikit-learn = ">=1.5.1"
 xgboost = ">=2.1.3"
 seaborn = ">=0.13.2"
+squarify = ">=0.4.4"
 
 [build-system]
 requires = ["poetry-core"]

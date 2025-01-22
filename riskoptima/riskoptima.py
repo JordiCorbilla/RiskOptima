@@ -4,9 +4,9 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.10.0
+Version: 1.11.0
 
-Date: 12/01/2024
+Date: 21/01/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -54,6 +54,8 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib.dates import DateFormatter
 from matplotlib.dates import AutoDateLocator
 import matplotlib.patches as patches
+import squarify
+import matplotlib as mpl
 
 
 class RiskOptima:
@@ -2121,13 +2123,13 @@ class RiskOptima:
         median_volatility_idx = sorted_by_volatility.iloc[len(sorted_by_volatility) // 2]['Simulation Index']
 
         optimal_weights = recorded_weights[:, optimal_sharpe_idx]
-        optimal_weights_percent = optimal_weights * 100
-        optimal_weights_percent_str = ', '.join([f"{weight:.2f}%" for weight in optimal_weights_percent])
+        #optimal_weights_percent = optimal_weights * 100
+        #optimal_weights_percent_str = ', '.join([f"{weight:.2f}%" for weight in optimal_weights_percent])
         median_volatility_weights = recorded_weights[:, int(median_volatility_idx)]
 
         # Prepare for distribution simulation
         daily_mean_returns = stock_daily_returns.mean()
-        daily_volatility = stock_daily_returns.std()
+        #daily_volatility = stock_daily_returns.std()
         benchmark_mean_return = benchmark_daily_returns.mean()
         benchmark_volatility = benchmark_daily_returns.std()
 
@@ -2258,3 +2260,128 @@ class RiskOptima:
         RiskOptima.add_table_to_plot(
             ax, df_prob, x=1.02, y=0.12, column_width=0.40, fontsize=9
         )
+       
+    @staticmethod
+    def create_portfolio_area_chart(
+        assets, 
+        weights, 
+        my_labels,
+        end_date=None, 
+        lookback_days=5, 
+        title="Portfolio Area Chart"
+    ):
+        """
+        Create a market-area chart with a gradient colour scheme that depends on 
+        the percentage change over a specified lookback period,
+        showing each asset's return and allocation percentage.
+        """
+    
+        if end_date:
+            end_dt = pd.to_datetime(end_date)
+            start_dt = end_dt - pd.Timedelta(days=(lookback_days + 10))
+            data = yf.download(
+                assets,
+                start=start_dt.strftime('%Y-%m-%d'),
+                end=end_dt.strftime('%Y-%m-%d'),
+                interval="1d",
+                progress=False
+            )
+        else:
+            data = yf.download(assets, period="1mo", interval="1d", progress=False)
+    
+        close_prices = data["Close"]
+        if len(close_prices) < lookback_days:
+            raise ValueError(f"Not enough data to compute {lookback_days}-day returns.")
+    
+        recent = close_prices.iloc[-1]
+        previous = close_prices.iloc[-lookback_days]
+        pct_change = ((recent - previous) / previous) * 100
+        pct_change = pct_change.fillna(0)
+    
+        t_minus_x_data = pd.DataFrame({
+            "Asset": assets,
+            f"Close(T-{lookback_days})": previous.values,
+            "Close(T)": recent.values,
+            f"{lookback_days}d % Change": pct_change.values
+        })
+        print(t_minus_x_data)
+    
+        latest_date = close_prices.index[-1].strftime('%Y-%m-%d')
+        full_title = f"{title}: {lookback_days}-Day Returns as of {latest_date}"
+    
+        assert len(weights) == len(assets), "Weights array length must match the number of assets"
+    
+        min_val = pct_change.min()
+        max_val = pct_change.max()
+    
+        if min_val == max_val:
+            min_val = max_val - 0.0001
+    
+        cmap = mpl.colors.LinearSegmentedColormap.from_list(
+            "greyredgreen", 
+            [ (0.7, 0.7, 0.7),  # grey at "centre"
+              (1.0, 0.0, 0.0)   # red 
+            ],
+            N=256
+        )
+        cmap_green = mpl.colors.LinearSegmentedColormap.from_list(
+            "greygreen", 
+            [ (0.7, 0.7, 0.7),  # grey
+              (0.0, 1.0, 0.0)   # green
+            ],
+            N=256
+        )
+    
+        def blended_colour(value):
+            if max_val <= 0:
+                ratio = (value - min_val) / (0 - min_val)
+                ratio = np.clip(ratio, 0, 1)
+                return cmap(ratio)
+            elif min_val >= 0:
+                ratio = (value - 0) / (max_val - 0)
+                ratio = np.clip(ratio, 0, 1)
+                return cmap_green(ratio)
+            else:
+                if value < 0:
+                    ratio = (value - min_val) / (0 - min_val)
+                    ratio = np.clip(ratio, 0, 1)
+                    return cmap(ratio)
+                else:
+                    ratio = (value - 0) / (max_val - 0)
+                    ratio = np.clip(ratio, 0, 1)
+                    return cmap_green(ratio)
+    
+        colours = [blended_colour(v) for v in pct_change]
+    
+        labels = [
+            f"{name}\n"
+            f"{'+' if ret > 0 else ''}{ret:.2f}%\n"
+            f"Allocation: {w * 100:.1f}%"
+            for name, ret, w in zip(my_labels, pct_change, weights)
+        ]
+    
+        sizes = weights * 100
+    
+        fig, ax = plt.subplots(figsize=(18, 12))
+        squarify.plot(
+            sizes=sizes,
+            label=labels,
+            color=colours,
+            alpha=0.8,
+            ax=ax,
+            edgecolor="#4f4f4f",  # dark grey border
+            linewidth=2
+        )
+        ax.set_title(full_title, fontsize=18)
+        ax.axis('off')
+    
+        norm = mpl.colors.Normalize(vmin=min_val, vmax=max_val)
+        combined_cmap = mpl.cm.RdYlGn
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        sm = mpl.cm.ScalarMappable(cmap=combined_cmap, norm=norm)
+        sm.set_array([])  # required for matplotlib < 3.2
+        cbar = plt.colorbar(sm, cax=cbar_ax)
+        cbar.set_label(f"{lookback_days}-Day Return (%)", fontsize=12)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plt.savefig(f"portfolio_area_chart_{timestamp}.png", dpi=300, bbox_inches='tight')
+        plt.show()        
