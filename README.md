@@ -66,3 +66,6 @@ We welcome contributions! If you'd like to improve the package or report issues,
 
 RiskOptima is licensed under the MIT License.
 
+### Support me
+
+<a href="https://www.buymeacoffee.com/jordicorbilla" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
