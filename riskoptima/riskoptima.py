@@ -4,9 +4,9 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.11.0
+Version: 1.12.0
 
-Date: 21/01/2025
+Date: 02/02/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
