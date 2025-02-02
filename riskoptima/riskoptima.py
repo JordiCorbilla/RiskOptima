@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.12.0
+Version: 1.13.0
 
 Date: 02/02/2025
 
@@ -1748,17 +1748,41 @@ class RiskOptima:
         )
 
     @staticmethod
-    def plot_efficient_frontier(simulated_portfolios, weights_record, assets,
-                                market_return, market_volatility, market_sharpe,
-                                daily_returns, cov_matrix,
-                                risk_free_rate=0.0, title='Efficient Frontier',
-                                current_weights=None,
-                                current_labels=None,
+    def plot_efficient_frontier_monte_carlo(
+                                asset_table, 
                                 start_date='2020-01-01',
-                                end_date='2023-01-01',
+                                end_date='2023-01-01',    
+                                risk_free_rate=0.0, 
+                                num_portfolios=10000,
+                                market_benchmark='SPY',
                                 set_ticks=False,
                                 x_pos_table=1.15,
-                                y_pos_table=0.52):
+                                y_pos_table=0.52,
+                                title='Efficient Frontier'):
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        assets = asset_table['Asset'].tolist()
+        current_weights = asset_table['Weight'].values if 'Weight' in asset_table.columns else None
+        current_labels = asset_table['Label'].values if 'Label' in asset_table.columns else assets
+        
+        # Download market data and save it to a CSV (optional)
+        asset_data = RiskOptima.download_data_yfinance(assets, start_date, end_date)
+        asset_data.to_csv(f'market_data_{timestamp}.csv')
+        
+        # Compute daily returns and covariance matrix
+        daily_returns, cov_matrix = RiskOptima.calculate_statistics(asset_data, risk_free_rate)
+        
+        # Run Monte Carlo simulation
+        simulated_portfolios, weights_record = RiskOptima.run_monte_carlo_simulation(
+            daily_returns, cov_matrix,
+            num_portfolios=num_portfolios,
+            risk_free_rate=risk_free_rate
+        )
+        
+        # Retrieve market benchmark statistics
+        market_return, market_volatility, market_sharpe = RiskOptima.get_market_statistics(
+            market_benchmark, start_date, end_date, risk_free_rate
+        )
         """
         Plot an efficient frontier with additional details
         """
@@ -1807,6 +1831,7 @@ class RiskOptima:
         show_cml = True
         show_ew = True
         show_gmv = True
+
         _, w_msr, w_gmv = RiskOptima.plot_ef_ax(
             n_points=n_points,
             expected_returns=annual_returns,
@@ -1900,7 +1925,6 @@ class RiskOptima:
         RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
 
         plt.tight_layout()
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plt.savefig(f"efficient_frontier_monter_carlo_{timestamp}.png", dpi=300, bbox_inches='tight')
         plt.show()
 
