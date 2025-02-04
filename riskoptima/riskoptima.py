@@ -2733,7 +2733,6 @@ class RiskOptima:
         ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
         ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
         
-        # (Assuming RiskOptima.get_portfolio_results returns a dict of portfolio names -> final value arrays)
         portfolio_results = RiskOptima.get_portfolio_results(
             cumulative_returns_unoptimized, cumulative_returns_mv, cumulative_returns_ml_mv
         )
