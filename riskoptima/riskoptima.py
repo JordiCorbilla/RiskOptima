@@ -50,7 +50,7 @@ from xgboost import XGBRegressor
 from sklearn.svm import SVR
 from datetime import date, datetime, timedelta
 import seaborn as sns
-from matplotlib.ticker import MultipleLocator
+from matplotlib.ticker import MultipleLocator, MaxNLocator
 from matplotlib.dates import DateFormatter
 from matplotlib.dates import AutoDateLocator
 import matplotlib.patches as patches
@@ -2602,3 +2602,185 @@ class RiskOptima:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plt_obj.savefig(f"machine_learning_optimization_{timestamp}.png", dpi=300, bbox_inches='tight')
         plt_obj.show()        
+
+    @staticmethod        
+    def run_portfolio_probability_analysis(
+        asset_table, 
+        model_type,
+        analysis_start_date,
+        analysis_end_date,
+        benchmark_index,
+        risk_free_rate,
+        number_of_portfolio_weights,
+        number_of_monte_carlo_runs,
+        capital,
+        max_volatility,
+        min_weight,
+        max_weight
+    ):
+        """
+        Run portfolio probability analysis using Monte Carlo simulation and optimization.
+        
+        Parameters:
+          asset_table (pd.DataFrame): DataFrame with the following columns:
+              - 'Asset': Ticker symbol.
+              - 'Weight': Original portfolio weight (as a fraction).
+              - 'Label': Descriptive name.
+              - 'MarketCap': Market capitalisation.
+          model_type (str): Model type (e.g. 'Linear Regression').
+          analysis_start_date (str): Analysis start date ('YYYY-MM-DD').
+          analysis_end_date (str): Analysis end date ('YYYY-MM-DD').
+          benchmark_index (str): Benchmark index ticker (e.g. 'SPY').
+          risk_free_rate (float): Risk-free rate for performance calculations.
+          number_of_portfolio_weights (int): Number of portfolio weight simulations.
+          number_of_monte_carlo_runs (int): Number of Monte Carlo runs.
+          capital (float): Total capital to allocate.
+          max_volatility (float): Maximum allowed portfolio volatility.
+          min_weight (float): Minimum allocation weight per asset.
+          max_weight (float): Maximum allocation weight per asset.
+        
+        The function:
+          1. Computes a portfolio dictionary by multiplying each asset’s weight by the capital.
+          2. Extracts market capitalisations and labels.
+          3. Runs mean-variance optimization (both standard and with ML-adjusted returns via the Black-Litterman approach).
+          4. Fetches historical data and computes backtested cumulative returns.
+          5. Plots the probability distributions of final fund returns and overlays performance tables.
+        """
+        portfolio = {row['Asset']: row['Weight'] * capital for idx, row in asset_table.iterrows()}
+        
+        market_caps = {row['Asset']: row['MarketCap'] for idx, row in asset_table.iterrows()}
+        my_current_labels = asset_table['Label'].values
+        
+        tickers, weights = RiskOptima.calculate_portfolio_allocation(portfolio)
+        
+        optimized_weights_mv = RiskOptima.perform_mean_variance_optimization(
+            tickers, analysis_start_date, analysis_end_date, 
+            max_volatility, min_allocation=min_weight, max_allocation=max_weight
+        )
+        
+        investor_views, view_confidences = RiskOptima.generate_predictions_tickers(
+            tickers, analysis_start_date, analysis_end_date, model_type
+        )
+        
+        index_data = RiskOptima.fetch_historical_stock_prices(
+            benchmark_index, analysis_start_date, analysis_end_date
+        )
+        index_return = (index_data['Close'].iloc[-1] / index_data['Close'].iloc[0]) - 1
+        
+        market_returns = RiskOptima.compute_market_returns(market_caps, index_return)
+        
+        historical_data = RiskOptima.fetch_historical_stock_prices(
+            tickers, analysis_start_date, analysis_end_date
+        )
+        predicted_returns = RiskOptima.black_litterman_adjust_returns(
+            market_returns, investor_views, view_confidences, historical_data
+        )
+        predicted_returns = dict(zip(tickers, predicted_returns))
+        adjusted_returns_vector = np.array([predicted_returns[ticker] for ticker in tickers])
+        
+        optimized_weights_ml_mv = RiskOptima.perform_mean_variance_optimization(
+            tickers, analysis_start_date, analysis_end_date, 
+            max_volatility, adjusted_returns_vector, min_weight, max_weight
+        )
+        
+        backtesting_start_date = analysis_end_date
+        backtesting_end_date = RiskOptima.get_previous_working_day()
+        
+        historical_data_backtest = RiskOptima.fetch_historical_stock_prices(
+            tickers, backtesting_start_date, backtesting_end_date
+        )
+        historical_data_filled = historical_data_backtest['Close'].ffill()
+        daily_returns_backtest = historical_data_filled.pct_change()
+        
+        portfolio_returns_ml_mv = daily_returns_backtest.dot(optimized_weights_ml_mv)
+        cumulative_returns_ml_mv = (1 + portfolio_returns_ml_mv).cumprod()
+        
+        portfolio_returns_mv = daily_returns_backtest.dot(optimized_weights_mv)
+        cumulative_returns_mv = (1 + portfolio_returns_mv).cumprod()
+        
+        market_data = RiskOptima.fetch_historical_stock_prices(
+            benchmark_index, backtesting_start_date, backtesting_end_date
+        )['Close']
+        market_data_filled = market_data.ffill()
+        market_returns_series = market_data_filled.pct_change()
+        cumulative_market_returns = (1 + market_returns_series).cumprod()
+        
+        portfolio_returns_unoptimized = daily_returns_backtest.dot(weights)
+        cumulative_returns_unoptimized = (1 + portfolio_returns_unoptimized).cumprod()
+        
+        weights_pct = [f'{w * 100:.2f}%' for w in weights]
+        optimized_weights_pct = [f'{w * 100:.2f}%' for w in optimized_weights_mv]
+        optimized_weights_ml_mv_pct = [f'{w * 100:.2f}%' for w in optimized_weights_ml_mv]
+        
+        portfolio_comparison = pd.DataFrame({
+            'Original': weights_pct,
+            'MV Optimization': optimized_weights_pct,
+            f'{model_type} & MV Optimization': optimized_weights_ml_mv_pct
+        }, index=tickers)
+        portfolio_comparison.index = my_current_labels
+        
+        fig, ax = plt.subplots(figsize=(23, 10))
+        fig.subplots_adjust(right=0.80)
+        sns.set_style("whitegrid")
+        ax.set_facecolor('white')
+        plt.gcf().set_facecolor('white')
+        
+        ax.xaxis.set_major_locator(MaxNLocator(integer=False, nbins=20))
+        ax.yaxis.set_major_locator(MaxNLocator(integer=False, nbins=15))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:.2f}%'))
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f'{y*100:.2f}%'))
+        
+        ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
+        ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
+        
+        # (Assuming RiskOptima.get_portfolio_results returns a dict of portfolio names -> final value arrays)
+        portfolio_results = RiskOptima.get_portfolio_results(
+            cumulative_returns_unoptimized, cumulative_returns_mv, cumulative_returns_ml_mv
+        )
+        palette = sns.color_palette("pastel", len(portfolio_results) + 1)
+        i = 0
+        for portfolio_name, final_values in portfolio_results.items():
+            color = palette[i]
+            final_values_percent = [(value/10000.0 - 1)*100 for value in final_values]
+            sns.kdeplot(final_values_percent, label=portfolio_name, color=color, ax=ax)
+            
+            # Plot a vertical line at the mean if available.
+            metrics = RiskOptima.get_portfolio_metrics(portfolio_comparison)
+            if portfolio_name in metrics:
+                mean_val, _ = metrics[portfolio_name]
+                ax.axvline(x=mean_val*100, color=color, linestyle='--', linewidth=1)
+            i += 1
+        
+        market_color = palette[-1]
+        market_final_values_percent = [(val/10000.0 - 1)*100 for val in cumulative_market_returns]
+        sns.kdeplot(market_final_values_percent, label=benchmark_index, color=market_color, ax=ax)
+        market_expected_return = market_returns_series.mean()
+        ax.axvline(x=market_expected_return*100, color=market_color, linestyle='--', linewidth=1)
+        
+        plt.xlabel('Final Fund % Returns')
+        plt.ylabel('Density')
+        plt.title(f'Probability Distributions of Final Fund Returns {analysis_start_date} to {analysis_end_date}', fontsize=14)
+        plt.legend(loc='best')
+        
+        RiskOptima.plot_weights_table(initial_weights=None, optimal_weights=optimized_weights_mv, labels=my_current_labels, ax=ax)
+        RiskOptima.plot_performance_table(
+            metrics,
+            benchmark_index,
+            (market_expected_return, market_data_filled.std(), market_returns_series.mean()),
+            risk_free_rate,
+            ax=ax
+        )
+        RiskOptima.plot_probability_table(portfolio_results, cumulative_market_returns, ax=ax)
+        RiskOptima.add_ratio_explanation(ax, x=1.02, y=0.01, fontsize=9)
+        
+        plot_title = ("Portfolio Optimization and Benchmarking: Comparing Machine Learning and Statistical "
+                      "Models for Risk-Adjusted Performance")
+        plt.title(plot_title, fontsize=14, pad=20)
+        plt.xlabel('Date')
+        plt.ylabel('Percentage Gain (%)')
+        plt.legend(loc='lower center')
+        plt.grid(True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plt.savefig(f"probability_distributions_of_final_fund_returns_{timestamp}.png", dpi=300, bbox_inches='tight')
+        plt.show()        
