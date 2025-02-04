@@ -26,31 +26,74 @@ pip install riskoptima
 ```
 ## Usage
 
-Example 1: Efficient Frontier
+Example 1: Efficient Frontier - Monte Carlo Portfolio Optimization
 ```python
-from riskoptima import RiskOptima
 import pandas as pd
+from riskoptima import RiskOptima
 
-# Download market data
-data = RiskOptima.download_data_yfinance(['AAPL', 'MSFT', 'GOOG'], '2022-01-01', '2022-12-31')
-daily_returns, cov_matrix = RiskOptima.calculate_statistics(data)
+# Define your current porfolio with your weights and company names
+asset_data = [
+    {"Asset": "MO",    "Weight": 0.04, "Label": "Altria Group Inc.",       "MarketCap": 110.0e9},
+    {"Asset": "NWN",   "Weight": 0.14, "Label": "Northwest Natural Gas",   "MarketCap": 1.8e9},
+    {"Asset": "BKH",   "Weight": 0.01, "Label": "Black Hills Corp.",         "MarketCap": 4.5e9},
+    {"Asset": "ED",    "Weight": 0.01, "Label": "Con Edison",                "MarketCap": 30.0e9},
+    {"Asset": "PEP",   "Weight": 0.09, "Label": "PepsiCo Inc.",              "MarketCap": 255.0e9},
+    {"Asset": "NFG",   "Weight": 0.16, "Label": "National Fuel Gas",         "MarketCap": 5.6e9},
+    {"Asset": "KO",    "Weight": 0.06, "Label": "Coca-Cola Company",         "MarketCap": 275.0e9},
+    {"Asset": "FRT",   "Weight": 0.28, "Label": "Federal Realty Inv. Trust", "MarketCap": 9.8e9},
+    {"Asset": "GPC",   "Weight": 0.16, "Label": "Genuine Parts Co.",         "MarketCap": 25.3e9},
+    {"Asset": "MSEX",  "Weight": 0.05, "Label": "Middlesex Water Co.",       "MarketCap": 2.4e9}
+]
+asset_table = pd.DataFrame(asset_data)
 
-# Calculate Efficient Frontier
-mean_returns = daily_returns.mean()
-vols, rets, weights = RiskOptima.efficient_frontier(mean_returns, cov_matrix)
+capital = 100_000
 
-# Plot Efficient Frontier
-RiskOptima.plot_ef_ax(50, mean_returns, cov_matrix)
+asset_table['Portfolio'] = asset_table['Weight'] * capital
+
+start_date = '2024-01-01'
+end_date = RiskOptima.get_previous_working_day()
+
+RiskOptima.plot_efficient_frontier_monte_carlo(
+    asset_table,
+    start_date=start_date,
+    end_date=end_date,
+    risk_free_rate=0.05,
+    num_portfolios=10000,
+    market_benchmark='SPY',
+    set_ticks=False,
+    x_pos_table=1.15,    # Position for the weight table on the plot
+    y_pos_table=0.52,    # Position for the weight table on the plot
+    title=f'Efficient Frontier - Monte Carlo Simulation {start_date} to {end_date}'
+)
 ```
-Example 2: Monte Carlo Simulation
+![efficient_frontier_monter_carlo_20250203_205339](https://github.com/user-attachments/assets/f48f9f44-38cd-4d4c-96f2-48e767d7316e)
+
+Example 2: Portfolio Optimization using Mean Variance and Machine Learning
 ```python
-simulated_portfolios, weights_record = RiskOptima.run_monte_carlo_simulation(daily_returns, cov_matrix)
+RiskOptima.run_portfolio_optimization_mv_ml(
+    asset_table=asset_table,
+    training_start_date='2022-01-01',
+    training_end_date='2023-11-27',
+    model_type='Linear Regression',    
+    risk_free_rate=0.05,
+    num_portfolios=100000,
+    market_benchmark=['SPY'],
+    max_volatility=0.15,
+    min_weight=0.03,
+    max_weight=0.2
+)
 ```
+![machine_learning_optimization_20250203_210953](https://github.com/user-attachments/assets/0fae24a6-8d1d-45e7-b3d2-16939a1aadf7)
 
 Example 3: Macaulay Duration
 ```
-Navigate to -> https://github.com/JordiCorbilla/portfolio_risk_kit/blob/main/portfolio_risk_kit.ipynb
+from riskoptima import RiskOptima
+cf = RiskOptima.bond_cash_flows_v2(4, 1000, 0.06, 2)  # 2 years, semi-annual, hence 4 periods
+md_2 = RiskOptima.macaulay_duration_v3(cf, 0.05, 2)
+md_2
 ```
+![image](https://github.com/user-attachments/assets/8bf54461-7256-4162-9230-f29aeeef4a10)
+
 
 ## Documentation
 
