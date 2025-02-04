@@ -4,9 +4,9 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.13.0
+Version: 1.15.0
 
-Date: 02/02/2025
+Date: 04/02/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -56,6 +56,9 @@ from matplotlib.dates import AutoDateLocator
 import matplotlib.patches as patches
 import squarify
 import matplotlib as mpl
+
+import warnings
+warnings.simplefilter("always", FutureWarning)
 
 
 class RiskOptima:
