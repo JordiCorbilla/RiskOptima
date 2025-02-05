@@ -26,7 +26,7 @@ pip install riskoptima
 ```
 ## Usage
 
-Example 1: Efficient Frontier - Monte Carlo Portfolio Optimization
+### Example 1: Efficient Frontier - Monte Carlo Portfolio Optimization
 ```python
 import pandas as pd
 from riskoptima import RiskOptima
@@ -68,7 +68,7 @@ RiskOptima.plot_efficient_frontier_monte_carlo(
 ```
 ![efficient_frontier_monter_carlo_20250203_205339](https://github.com/user-attachments/assets/f48f9f44-38cd-4d4c-96f2-48e767d7316e)
 
-Example 2: Portfolio Optimization using Mean Variance and Machine Learning
+### Example 2: Portfolio Optimization using Mean Variance and Machine Learning
 ```python
 RiskOptima.run_portfolio_optimization_mv_ml(
     asset_table=asset_table,
@@ -85,7 +85,29 @@ RiskOptima.run_portfolio_optimization_mv_ml(
 ```
 ![machine_learning_optimization_20250203_210953](https://github.com/user-attachments/assets/0fae24a6-8d1d-45e7-b3d2-16939a1aadf7)
 
-Example 3: Macaulay Duration
+### Example 3: Portfolio Optimization using Probability Analysis
+```python
+ANALYSIS_START_DATE = RiskOptima.get_previous_year_date(RiskOptima.get_previous_working_day(), 1)
+ANALYSIS_END_DATE   = RiskOptima.get_previous_working_day()
+BENCHMARK_INDEX     = 'SPY'
+RISK_FREE_RATE      = 0.05
+NUMBER_OF_WEIGHTS   = 10_000
+NUMBER_OF_MC_RUNS   = 1_000
+
+RiskOptima.run_portfolio_probability_analysis(
+    asset_table=asset_table,
+    analysis_start_date=ANALYSIS_START_DATE,
+    analysis_end_date=ANALYSIS_END_DATE,
+    benchmark_index=BENCHMARK_INDEX,
+    risk_free_rate=RISK_FREE_RATE,
+    number_of_portfolio_weights=NUMBER_OF_WEIGHTS,
+    trading_days_per_year=RiskOptima.get_trading_days(),
+    number_of_monte_carlo_runs=NUMBER_OF_MC_RUNS
+)
+```
+![probability_distributions_of_final_fund_returns20250205_212501](https://github.com/user-attachments/assets/8ea20d1f-e74f-4559-b66f-41ee657dd63b)
+
+### Example 4: Macaulay Duration
 ```
 from riskoptima import RiskOptima
 cf = RiskOptima.bond_cash_flows_v2(4, 1000, 0.06, 2)  # 2 years, semi-annual, hence 4 periods
@@ -93,7 +115,6 @@ md_2 = RiskOptima.macaulay_duration_v3(cf, 0.05, 2)
 md_2
 ```
 ![image](https://github.com/user-attachments/assets/8bf54461-7256-4162-9230-f29aeeef4a10)
-
 
 ## Documentation
 
