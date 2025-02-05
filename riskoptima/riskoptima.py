@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.16.0
+Version: 1.17.0
 
 Date: 05/02/2025
 
@@ -58,8 +58,11 @@ import squarify
 import matplotlib as mpl
 
 import warnings
-warnings.simplefilter("always", FutureWarning)
-
+warnings.filterwarnings(
+    "ignore", 
+    category=FutureWarning, 
+    message=".*DataFrame.std with axis=None is deprecated.*"
+)
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
