@@ -4,9 +4,9 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.18.0
+Version: 1.19.0
 
-Date: 10/02/2025
+Date: 11/02/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -24,15 +24,19 @@ Main features include:
 - Black-Litterman adjusted returns
 - Market correlation and financial ratios
 - Monte Carlo-based portfolio analysis and probability distributions
+- Black-Scholes option pricing model
+- Heston stochastic volatility model for option pricing
+- Merton Jump Diffusion model for option pricing
+- Heatmap visualization of option prices using Monte Carlo simulation
 
 Dependencies: 
     pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
-    matplotlib, seaborn, xgboost
+    matplotlib, seaborn, xgboost, squarify
 """
 
 import pandas as pd
 import numpy as np
-import scipy.stats
+import scipy.stats as si
 import statsmodels.api as sm
 import math
 import yfinance as yf
@@ -56,6 +60,7 @@ from matplotlib.dates import AutoDateLocator
 import matplotlib.patches as patches
 import squarify
 import matplotlib as mpl
+import matplotlib.ticker as mticker
 
 import warnings
 warnings.filterwarnings(
@@ -265,7 +270,7 @@ class RiskOptima:
         if isinstance(returns, pd.DataFrame):
             return returns.aggregate(RiskOptima.is_normal)
         else:
-            statistic, p_value = scipy.stats.jarque_bera(returns)
+            statistic, p_value = si.jarque_bera(returns)
             return p_value > level
 
     @staticmethod
@@ -2294,8 +2299,6 @@ class RiskOptima:
     @staticmethod
     def create_portfolio_area_chart(
         asset_table,
-        weights, 
-        my_labels,
         end_date=None, 
         lookback_days=5, 
         title="Portfolio Area Chart"
@@ -2391,7 +2394,7 @@ class RiskOptima:
             f"{name}\n"
             f"{'+' if ret > 0 else ''}{ret:.2f}%\n"
             f"Allocation: {w * 100:.1f}%"
-            for name, ret, w in zip(my_labels, pct_change, weights)
+            for name, ret, w in zip(labels, pct_change, weights)
         ]
     
         sizes = weights * 100
@@ -2724,3 +2727,129 @@ class RiskOptima:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plt.savefig(f"probability_distributions_of_final_fund_returns{timestamp}.png", dpi=300, bbox_inches='tight')
         plt.show()     
+        
+    @staticmethod
+    def black_scholes(S, X, T, r, sigma):
+        """
+        Computes the Black-Scholes option price for a European call option.
+        
+        :param float S: Current price of the underlying asset.
+        :param float X: Strike price of the option.
+        :param float T: Time to expiration in years.
+        :param float r: Risk-free interest rate.
+        :param float sigma: Volatility of the underlying asset.
+        :return: The calculated call option price as a float.
+        """
+        d1 = (np.log(S / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        call_price = S * si.norm.cdf(d1) - X * np.exp(-r * T) * si.norm.cdf(d2)
+        return call_price
+    
+    @staticmethod
+    def heston(S_0, X, T, r, kappa, theta, sigma_v, rho, v_0, num_simulations=10000, num_steps=100):
+        """
+        Computes the option price using the Heston model via Monte Carlo simulation.
+        
+        :param float S_0: Initial price of the underlying asset.
+        :param float X: Strike price of the option.
+        :param float T: Time to expiration in years.
+        :param float r: Risk-free interest rate.
+        :param float kappa: Mean reversion rate of volatility.
+        :param float theta: Long-term mean of volatility.
+        :param float sigma_v: Volatility of volatility.
+        :param float rho: Correlation between asset return and volatility.
+        :param float v_0: Initial variance.
+        :param int num_simulations: Number of simulations (default: 10000).
+        :param int num_steps: Number of steps in the simulation (default: 100).
+        :return: The estimated option price using the Heston model as a float.
+        """
+        dt = T / num_steps
+        option_payoffs = []
+    
+        for _ in range(num_simulations):
+            S_t = S_0
+            v_t = v_0
+            for _ in range(num_steps):
+                z1, z2 = np.random.normal(size=2)
+                z2 = rho * z1 + np.sqrt(1 - rho ** 2) * z2
+                S_t += r * S_t * dt + np.sqrt(v_t) * S_t * z1 * np.sqrt(dt)
+                v_t += kappa * (theta - v_t) * dt + sigma_v * np.sqrt(v_t) * z2 * np.sqrt(dt)
+                v_t = max(v_t, 0)
+            option_payoff = max(S_t - X, 0)
+            option_payoffs.append(option_payoff)
+    
+        average_payoff = np.mean(option_payoffs)
+        option_price = np.exp(-r * T) * average_payoff
+    
+        return option_price
+    
+    @staticmethod
+    def merton_jump_diffusion(S_0, X, T, r, sigma, lambda_jump, m_jump, delta_jump, num_simulations=10000, num_steps=100):
+        """
+        Computes the option price using the Merton Jump Diffusion model via Monte Carlo simulation.
+        
+        :param float S_0: Initial price of the underlying asset.
+        :param float X: Strike price of the option.
+        :param float T: Time to expiration in years.
+        :param float r: Risk-free interest rate.
+        :param float sigma: Volatility of the underlying asset.
+        :param float lambda_jump: Intensity of the jumps.
+        :param float m_jump: Mean of the jump size.
+        :param float delta_jump: Volatility of the jump size.
+        :param int num_simulations: Number of simulations (default: 10000).
+        :param int num_steps: Number of steps in the simulation (default: 100).
+        :return: The estimated option price using the Merton Jump Diffusion model as a float.
+        """
+        dt = T / num_steps
+        S_t = np.full(num_simulations, S_0, dtype=np.float64)
+    
+        for _ in range(num_steps):
+            z = np.random.normal(size=num_simulations)
+            jump_sizes = np.random.normal(loc=m_jump, scale=delta_jump, size=num_simulations)
+            jumps = np.random.poisson(lambda_jump * dt, size=num_simulations)
+            S_t *= np.exp((r - 0.5 * sigma ** 2) * dt + sigma * np.sqrt(dt) * z)
+            S_t *= np.exp(jumps * jump_sizes)
+    
+        option_payoffs = np.maximum(S_t - X, 0)
+        average_payoff = np.mean(option_payoffs)
+        option_price = np.exp(-r * T) * average_payoff
+    
+        return option_price
+    
+    @staticmethod
+    def create_heatmap(S_0, X, T, lambda_jump, m_jump, delta_jump,
+                       volatility_range=(0.1, 0.5), interest_rate_range=(0.01, 0.1),
+                       volatility_steps=12, interest_rate_steps=12, sigma=0.25):
+        """
+        Generates a heatmap of option prices using the Merton Jump Diffusion model.
+        
+        :param float S_0: Initial price of the underlying asset.
+        :param float X: Strike price of the option.
+        :param float T: Time to expiration in years.
+        :param float lambda_jump: Intensity of the jumps.
+        :param float m_jump: Mean of the jump size.
+        :param float delta_jump: Volatility of the jump size.
+        :param tuple volatility_range: Range of volatilities to iterate over (default: (0.1, 0.5)).
+        :param tuple interest_rate_range: Range of interest rates to iterate over (default: (0.01, 0.1)).
+        :param int volatility_steps: Number of steps in the volatility grid (default: 12).
+        :param int interest_rate_steps: Number of steps in the interest rate grid (default: 12).
+        """
+        volatility_grid = np.linspace(volatility_range[0], volatility_range[1], volatility_steps)
+        interest_rate_grid = np.linspace(interest_rate_range[0], interest_rate_range[1], interest_rate_steps)
+        
+        option_prices_matrix = np.zeros((len(interest_rate_grid), len(volatility_grid)))
+        
+        for i, r in enumerate(interest_rate_grid):
+            for j, sigma_v in enumerate(volatility_grid):
+                option_prices_matrix[i, j] = RiskOptima.merton_jump_diffusion(S_0, X, T, r, sigma, lambda_jump, m_jump, delta_jump)
+        
+        plt.figure(figsize=(8, 6))
+        plt.imshow(option_prices_matrix, cmap='viridis', extent=[volatility_grid[0], volatility_grid[-1], interest_rate_grid[0], interest_rate_grid[-1]], aspect='auto', origin='lower')
+        plt.colorbar(label='Option Price')
+        plt.title('Option Prices Heatmap')
+        plt.xlabel('Volatility (%)')
+        plt.ylabel('Interest Rate (%)')
+        plt.gca().xaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
+        plt.gca().yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
+        plt.show()
+        
