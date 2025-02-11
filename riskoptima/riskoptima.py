@@ -4,9 +4,9 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.17.0
+Version: 1.18.0
 
-Date: 05/02/2025
+Date: 10/02/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -2293,7 +2293,7 @@ class RiskOptima:
        
     @staticmethod
     def create_portfolio_area_chart(
-        assets, 
+        asset_table,
         weights, 
         my_labels,
         end_date=None, 
@@ -2305,6 +2305,10 @@ class RiskOptima:
         the percentage change over a specified lookback period,
         showing each asset's return and allocation percentage.
         """
+    
+        assets = asset_table["Asset"].tolist()
+        weights = asset_table["Weight"].to_numpy()
+        labels = asset_table["Label"].tolist()
     
         if end_date:
             end_dt = pd.to_datetime(end_date)
