@@ -1,13 +1,19 @@
 [tool.poetry]
 name = "riskoptima"
-version = "1.18.0"
-description = "The RiskOptima toolkit is a comprehensive Python solution designed to assist investors in evaluating, managing, and optimizing the risk of their investment portfolios. This package implements advanced financial metrics and models to compute key risk indicators, including Value at Risk (VaR), Conditional Value at Risk (CVaR), and volatility assessment"
+version = "1.19.0"
+description = "RiskOptima is a powerful Python toolkit for financial risk analysis, portfolio optimization, and advanced quantitative modeling. It integrates state-of-the-art methodologies, including Monte Carlo simulations, Value at Risk (VaR), Conditional VaR (CVaR), Black-Scholes, Heston, and Merton Jump Diffusion models, to aid investors in making data-driven investment decisions."
 authors = ["Jordi Corbilla <jordi.coll.corbilla@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/JordiCorbilla/RiskOptima"
 repository = "https://github.com/JordiCorbilla/RiskOptima"
-keywords = ["portfolio", "risk", "optimization", "VaR", "backtesting", "monte-carlo", "machine-learning", "random-forest", "linear-regression", "gradient-boosting", "mean-variance", "black-litterman"]
+keywords = [
+    "portfolio", "risk", "optimization", "VaR", "CVaR", "backtesting", 
+    "monte-carlo", "machine-learning", "random-forest", "linear-regression", 
+    "gradient-boosting", "mean-variance", "black-litterman", "stochastic-volatility", 
+    "option-pricing", "black-scholes", "heston-model", "merton-jump-diffusion", 
+    "efficient-frontier", "financial-modeling", "quantitative-finance"
+]
 
 [tool.poetry.dependencies]
 python = ">=3.11"
