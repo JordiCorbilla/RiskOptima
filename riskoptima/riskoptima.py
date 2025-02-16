@@ -4,9 +4,9 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.20.0
+Version: 1.21.0
 
-Date: 15/02/2025
+Date: 16/02/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -62,6 +62,7 @@ import matplotlib.patches as patches
 import squarify
 import matplotlib as mpl
 import matplotlib.ticker as mticker
+import os
 
 import warnings
 warnings.filterwarnings(
@@ -72,6 +73,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
+    VERSION = '1.21.0'
 
     @staticmethod
     def get_trading_days():
@@ -1160,7 +1162,7 @@ class RiskOptima:
     @staticmethod
     def macaulay_duration_v3(cash_flows, yield_rate, freq):
         """
-        Calculate the Macaulay Duration and output the detailed table
+        Calculate the Macaulay Duration, Modified Duration, Dollar Duration, PVBP, and Convexity.
         """
         n = len(cash_flows)
         times = np.arange(1, n + 1) / freq
@@ -1170,6 +1172,25 @@ class RiskOptima:
         weights = present_values / total_present_value
         weighted_average_times = times * weights
 
+        # Compute Macaulay Duration
+        macaulay_duration = sum(weighted_average_times)
+
+        # Compute Modified Duration
+        modified_duration = macaulay_duration / (1 + yield_rate / freq)
+
+        # Compute Dollar Duration
+        bond_price = total_present_value
+        face_value = 1000  # Assuming face value is 1000
+        dollar_duration = modified_duration * bond_price / face_value
+
+        # Compute PVBP (DV01)
+        pvbp = dollar_duration / 100
+
+        # Compute Convexity
+        convexity_factors = times * (times + 1)
+        convexity = sum(present_values * convexity_factors) / (bond_price * (1 + yield_rate / freq) ** 2)
+
+        # Store detailed calculation breakdown
         df = pd.DataFrame({
             't': times,
             'df': discount_factors,
@@ -1190,7 +1211,16 @@ class RiskOptima:
 
         df = pd.concat([df, totals], ignore_index=True)
 
-        return df
+        # Store bond measures in a separate results DataFrame
+        bond_measures = pd.DataFrame({
+            "Macaulay Duration": [macaulay_duration],
+            "Modified Duration": [modified_duration],
+            "Dollar Duration": [dollar_duration],
+            "PVBP (DV01)": [pvbp],
+            "Convexity": [convexity]
+        })
+
+        return df, bond_measures
 
     @staticmethod
     def calculate_statistics(data, risk_free_rate=0.0):
@@ -2713,6 +2743,11 @@ class RiskOptima:
         plt.ylabel('Density')
         plt.title(f'Probability Distributions of Final Fund Returns {analysis_start_date} to {analysis_end_date}', fontsize=14)
         plt.legend(loc='best')
+        
+        plt.text(
+            0.98, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+        )
     
         # Plot additional tables using helper functions in RiskOptima.
         RiskOptima.plot_weights_table(initial_weights, optimal_weights, my_current_labels, ax)
@@ -2726,7 +2761,15 @@ class RiskOptima:
         RiskOptima.plot_probability_table(portfolio_results, market_final_values, ax)
     
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plt.savefig(f"probability_distributions_of_final_fund_returns{timestamp}.png", dpi=300, bbox_inches='tight')
+        
+        plots_folder = "plots"
+        
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+            
+        plot_path = os.path.join(plots_folder, f"probability_distributions_of_final_fund_returns{timestamp}.png")
+        
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
         plt.show()     
         
     @staticmethod
