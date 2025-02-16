@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.22.0
+Version: 1.23.0
 
 Date: 16/02/2025
 
@@ -73,7 +73,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.22.0'
+    VERSION = '1.23.0'
 
     @staticmethod
     def get_trading_days():
@@ -1977,7 +1977,7 @@ class RiskOptima:
         plots_folder = "plots"
         
         plt.text(
-            0.98, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
         
@@ -2475,9 +2475,9 @@ class RiskOptima:
         
         
         plt.text(
-                    0.98, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
-                    fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
-                )
+            0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+        )
         
         plots_folder = "plots"
         
@@ -2677,8 +2677,20 @@ class RiskOptima:
         plt_obj.legend(loc='lower center')
         plt_obj.grid(True)
         
+        plt_obj.text(
+            0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+        )
+        
+        plots_folder = "plots"
+        
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+            
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plt_obj.savefig(f"machine_learning_optimization_{timestamp}.png", dpi=300, bbox_inches='tight')
+        plot_path = os.path.join(plots_folder, f"machine_learning_optimization_{timestamp}.png")
+        
+        plt_obj.savefig(plot_path, dpi=300, bbox_inches='tight')
         plt_obj.show()        
 
     @staticmethod        
@@ -2782,7 +2794,7 @@ class RiskOptima:
         plt.legend(loc='best')
         
         plt.text(
-            0.98, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
     
