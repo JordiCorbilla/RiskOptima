@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.21.0
+Version: 1.22.0
 
 Date: 16/02/2025
 
@@ -73,7 +73,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.21.0'
+    VERSION = '1.22.0'
 
     @staticmethod
     def get_trading_days():
@@ -1809,7 +1809,15 @@ class RiskOptima:
         
         # Download market data and save it to a CSV (optional)
         asset_data = RiskOptima.download_data_yfinance(assets, start_date, end_date)
-        asset_data.to_csv(f'market_data_{timestamp}.csv')
+        
+        data_folder = "data"
+        
+        if not os.path.exists(data_folder):
+            os.makedirs(data_folder)
+        
+        data_path = os.path.join(data_folder, f'market_data_{timestamp}.csv')
+
+        asset_data.to_csv(data_path)
         
         # Compute daily returns and covariance matrix
         daily_returns, cov_matrix = RiskOptima.calculate_statistics(asset_data, risk_free_rate)
@@ -1966,8 +1974,22 @@ class RiskOptima:
         RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30, column_width=0.70, fontsize=9)
         RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
 
+        plots_folder = "plots"
+        
+        plt.text(
+            0.98, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+        )
+        
         plt.tight_layout()
-        plt.savefig(f"efficient_frontier_monter_carlo_{timestamp}.png", dpi=300, bbox_inches='tight')
+        
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+            
+        plot_path = os.path.join(plots_folder, f"efficient_frontier_monter_carlo_{timestamp}.png")
+        
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+
         plt.show()
 
     @staticmethod
@@ -2450,8 +2472,23 @@ class RiskOptima:
         sm.set_array([])  # required for matplotlib < 3.2
         cbar = plt.colorbar(sm, cax=cbar_ax)
         cbar.set_label(f"{lookback_days}-Day Return (%)", fontsize=12)
+        
+        
+        plt.text(
+                    0.98, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
+                    fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+                )
+        
+        plots_folder = "plots"
+        
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+            
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plt.savefig(f"portfolio_area_chart_{timestamp}.png", dpi=300, bbox_inches='tight')
+        plot_path = os.path.join(plots_folder, f"portfolio_area_chart_{timestamp}.png")
+        
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        
         plt.show()
         
     @staticmethod
