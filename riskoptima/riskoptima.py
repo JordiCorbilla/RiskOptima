@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.23.0
+Version: 1.24.0
 
 Date: 16/02/2025
 
@@ -73,7 +73,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.23.0'
+    VERSION = '1.24.0'
 
     @staticmethod
     def get_trading_days():
@@ -1799,8 +1799,7 @@ class RiskOptima:
                                 market_benchmark='SPY',
                                 set_ticks=False,
                                 x_pos_table=1.15,
-                                y_pos_table=0.52,
-                                title='Efficient Frontier'):
+                                y_pos_table=0.52):
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         assets = asset_table['Asset'].tolist()
@@ -1862,6 +1861,9 @@ class RiskOptima:
         fig.colorbar(sc, ax=ax, label='Sharpe Ratio')
         ax.set_xlabel('Volatility')
         ax.set_ylabel('Return')
+        
+        title=f'[RiskOptima] Efficient Frontier - Monte Carlo Simulation {start_date} to {end_date}'
+        
         ax.set_title(title)
 
         ax.scatter(
@@ -1977,7 +1979,7 @@ class RiskOptima:
         plots_folder = "plots"
         
         plt.text(
-            0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            0.995, -0.05, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
         
@@ -1986,7 +1988,7 @@ class RiskOptima:
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
             
-        plot_path = os.path.join(plots_folder, f"efficient_frontier_monter_carlo_{timestamp}.png")
+        plot_path = os.path.join(plots_folder, f"riskoptima_efficient_frontier_monter_carlo_{timestamp}.png")
         
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
 
@@ -2397,7 +2399,7 @@ class RiskOptima:
         print(t_minus_x_data)
     
         latest_date = close_prices.index[-1].strftime('%Y-%m-%d')
-        full_title = f"{title}: {lookback_days}-Day Returns as of {latest_date}"
+        full_title = f"[RiskOptima] {title}: {lookback_days}-Day Returns as of {latest_date}"
     
         assert len(weights) == len(assets), "Weights array length must match the number of assets"
     
@@ -2475,7 +2477,7 @@ class RiskOptima:
         
         
         plt.text(
-            0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            0.995, -0.05, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
         
@@ -2485,7 +2487,7 @@ class RiskOptima:
             os.makedirs(plots_folder)
             
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(plots_folder, f"portfolio_area_chart_{timestamp}.png")
+        plot_path = os.path.join(plots_folder, f"riskoptima_portfolio_area_chart_{timestamp}.png")
         
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
         
@@ -2669,7 +2671,7 @@ class RiskOptima:
         
         RiskOptima.add_ratio_explanation(ax, x=1.02, y=0.01, fontsize=9)
         
-        plot_title = ("Portfolio Optimization and Benchmarking: Comparing Machine Learning and Statistical "
+        plot_title = ("[RiskOptima] Portfolio Optimization and Benchmarking: Comparing Machine Learning and Statistical "
                       "Models for Risk-Adjusted Performance")
         plt_obj.title(plot_title, fontsize=14, pad=20)
         plt_obj.xlabel('Date')
@@ -2678,7 +2680,7 @@ class RiskOptima:
         plt_obj.grid(True)
         
         plt_obj.text(
-            0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            0.995, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
         
@@ -2688,7 +2690,7 @@ class RiskOptima:
             os.makedirs(plots_folder)
             
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(plots_folder, f"machine_learning_optimization_{timestamp}.png")
+        plot_path = os.path.join(plots_folder, f"riskoptima_machine_learning_optimization_{timestamp}.png")
         
         plt_obj.savefig(plot_path, dpi=300, bbox_inches='tight')
         plt_obj.show()        
@@ -2790,7 +2792,7 @@ class RiskOptima:
     
         plt.xlabel('Final Fund % Returns')
         plt.ylabel('Density')
-        plt.title(f'Probability Distributions of Final Fund Returns {analysis_start_date} to {analysis_end_date}', fontsize=14)
+        plt.title(f'[RiskOptima] Probability Distributions of Final Fund Returns {analysis_start_date} to {analysis_end_date}', fontsize=14)
         plt.legend(loc='best')
         
         plt.text(
@@ -2816,7 +2818,7 @@ class RiskOptima:
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
             
-        plot_path = os.path.join(plots_folder, f"probability_distributions_of_final_fund_returns{timestamp}.png")
+        plot_path = os.path.join(plots_folder, f"riskoptima_probability_distributions_of_final_fund_returns{timestamp}.png")
         
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
         plt.show()     
