@@ -4,9 +4,9 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.19.0
+Version: 1.20.0
 
-Date: 11/02/2025
+Date: 15/02/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -28,6 +28,7 @@ Main features include:
 - Heston stochastic volatility model for option pricing
 - Merton Jump Diffusion model for option pricing
 - Heatmap visualization of option prices using Monte Carlo simulation
+- Comprehensive bond analytics including duration, convexity, and yield sensitivity
 
 Dependencies: 
     pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
@@ -2853,3 +2854,51 @@ class RiskOptima:
         plt.gca().yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
         plt.show()
         
+    @staticmethod
+    def modified_duration(macaulay_duration, discount_rate, coupons_per_year=2):
+        """
+        Computes the modified duration from Macaulay duration.
+        
+        :param macaulay_duration: The Macaulay duration of the bond.
+        :param discount_rate: The bond's yield to maturity (YTM) as a decimal.
+        :param coupons_per_year: Number of coupon payments per year (default is 2 for semi-annual).
+        :return: Modified duration value.
+        """
+        return macaulay_duration / (1 + discount_rate / coupons_per_year)
+
+    @staticmethod
+    def dollar_duration(modified_duration, bond_price, face_value=100):
+        """
+        Computes the dollar duration of the bond.
+        
+        :param modified_duration: The modified duration of the bond.
+        :param bond_price: The current price of the bond.
+        :param face_value: The face value of the bond (default 100).
+        :return: Dollar duration value.
+        """
+        return modified_duration * bond_price / face_value
+
+    @staticmethod
+    def pvpb(dollar_duration):
+        """
+        Computes the Price Value of a Basis Point (PVBP), also known as DV01.
+        
+        :param dollar_duration: The dollar duration of the bond.
+        :return: PVBP (Price Value of a Basis Point).
+        """
+        return dollar_duration / 100
+
+    @staticmethod
+    def convexity(cash_flows, discount_rate, bond_price):
+        """
+        Computes the convexity of a bond.
+        
+        :param cash_flows: A Pandas Series of bond cash flows indexed by time.
+        :param discount_rate: The bond's yield to maturity (YTM) as a decimal.
+        :param bond_price: The current price of the bond.
+        :return: Convexity value.
+        """
+        times = cash_flows.index
+        discounted_cf = cash_flows / (1 + discount_rate) ** times
+        convexity = sum(discounted_cf * times * (times + 1)) / (bond_price * (1 + discount_rate) ** 2)
+        return convexity
