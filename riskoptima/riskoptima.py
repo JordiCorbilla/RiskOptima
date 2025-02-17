@@ -4,7 +4,6 @@
 
 """
 Author: Jordi Corbilla
-Version: 1.24.0
 
 Date: 16/02/2025
 
@@ -73,7 +72,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.24.0'
+    VERSION = '1.25.0'
 
     @staticmethod
     def get_trading_days():
@@ -1979,7 +1978,7 @@ class RiskOptima:
         plots_folder = "plots"
         
         plt.text(
-            0.995, -0.05, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
         
