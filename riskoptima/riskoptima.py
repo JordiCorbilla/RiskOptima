@@ -5,7 +5,7 @@
 """
 Author: Jordi Corbilla
 
-Date: 16/02/2025
+Date: 01/03/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -1798,7 +1798,8 @@ class RiskOptima:
                                 market_benchmark='SPY',
                                 set_ticks=False,
                                 x_pos_table=1.15,
-                                y_pos_table=0.52):
+                                y_pos_table=0.52,
+                                show_tables=True):
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         assets = asset_table['Asset'].tolist()
@@ -1941,7 +1942,8 @@ class RiskOptima:
         portfolio_df.set_index("Security", inplace=True)
         portfolio_df = portfolio_df.apply(lambda col: col.map(lambda x: f"{x * 100:.2f}%"))
 
-        RiskOptima.add_table_to_plot(ax, portfolio_df, x=x_pos_table, y=y_pos_table, column_width=0.70, fontsize=9)
+        if show_tables:
+            RiskOptima.add_table_to_plot(ax, portfolio_df, x=x_pos_table, y=y_pos_table, column_width=0.70, fontsize=9)
 
         titles = [
             "My Current\nPortfolio",
@@ -1972,8 +1974,10 @@ class RiskOptima:
             spine.set_edgecolor('black')
 
         stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
-        RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30, column_width=0.70, fontsize=9)
-        RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
+        
+        if show_tables:
+            RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30, column_width=0.70, fontsize=9)
+            RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
 
         plots_folder = "plots"
         
@@ -1987,11 +1991,13 @@ class RiskOptima:
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
             
-        plot_path = os.path.join(plots_folder, f"riskoptima_efficient_frontier_monter_carlo_{timestamp}.png")
+        plot_path = os.path.join(plots_folder, f"riskoptima_efficient_frontier_monte_carlo_{timestamp}.png")
         
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
 
         plt.show()
+        
+        return portfolio_df, stats_df 
 
     @staticmethod
     def add_stats_text_box(ax, title, stats_list, x=1.19, y=0.34, color='green', fontsize=10):
