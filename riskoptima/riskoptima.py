@@ -4,8 +4,7 @@
 
 """
 Author: Jordi Corbilla
-
-Date: 01/03/2025
+Date: 02/03/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -28,10 +27,13 @@ Main features include:
 - Merton Jump Diffusion model for option pricing
 - Heatmap visualization of option prices using Monte Carlo simulation
 - Comprehensive bond analytics including duration, convexity, and yield sensitivity
+- Hull-White stochastic volatility model for asset pricing
+- Heston stochastic volatility model for stochastic variance
+- SABR model for forward price volatility simulation
 
 Dependencies: 
-    pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
-    matplotlib, seaborn, xgboost, squarify
+pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
+matplotlib, seaborn, xgboost, squarify
 """
 
 import pandas as pd
@@ -72,7 +74,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.25.0'
+    VERSION = '1.26.0'
 
     @staticmethod
     def get_trading_days():
@@ -1799,7 +1801,8 @@ class RiskOptima:
                                 set_ticks=False,
                                 x_pos_table=1.15,
                                 y_pos_table=0.52,
-                                show_tables=True):
+                                show_tables=True,
+                                show_plot=True):
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         assets = asset_table['Asset'].tolist()
@@ -1995,9 +1998,10 @@ class RiskOptima:
         
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
 
-        plt.show()
+        if show_plot:
+            plt.show()
         
-        return portfolio_df, stats_df 
+        return plt, portfolio_df, stats_df 
 
     @staticmethod
     def add_stats_text_box(ax, title, stats_list, x=1.19, y=0.34, color='green', fontsize=10):
@@ -3001,3 +3005,89 @@ class RiskOptima:
         discounted_cf = cash_flows / (1 + discount_rate) ** times
         convexity = sum(discounted_cf * times * (times + 1)) / (bond_price * (1 + discount_rate) ** 2)
         return convexity
+    
+    @staticmethod
+    def simulate_hull_white(S0=100, sigma0=0.2, r=0.05, T=1.0, N=252, alpha=0.02, beta=0.1):
+        """
+        Simulates the Hull-White model for stochastic volatility.
+        
+        Equations:
+        dS(t) = r S(t) dt + σ(t) dW₁(t)
+        dσ(t) = α σ(t) dW₂(t)
+        
+        Parameters:
+        - S0: Initial asset price
+        - sigma0: Initial volatility
+        - r: Risk-free rate
+        - T: Time horizon in years
+        - N: Number of time steps
+        - alpha: Volatility scaling parameter
+        - beta: Unused in this model
+        
+        Returns:
+        - S: Simulated asset prices
+        - sigma: Simulated volatilities
+        """
+        dt = T / N
+        S = np.zeros(N)
+        sigma = np.zeros(N)
+        S[0], sigma[0] = S0, sigma0
+
+        for t in range(1, N):
+            dW1 = np.random.normal(0, np.sqrt(dt))
+            dW2 = np.random.normal(0, np.sqrt(dt))
+            S[t] = S[t-1] * (1 + r * dt + sigma[t-1] * dW1)
+            sigma[t] = sigma[t-1] + alpha * sigma[t-1] * dW2  # No mean reversion
+        return S, sigma
+    
+    @staticmethod
+    def simulate_heston(S0=100, sigma0=0.2, r=0.05, T=1.0, N=252, rho=-0.5, kappa=0.5, theta=0.2, eta=0.1):
+        """
+        Simulates the Heston model for stochastic volatility.
+        
+        Equations:
+        dS(t) = r S(t) dt + σ(t) S(t) dW₁(t)
+        dσ(t) = κ (θ - σ(t)) dt + η sqrt(σ(t)) dW₂(t)
+        dW₁(t) dW₂(t) = ρ dt
+        
+        Returns:
+        - S: Simulated asset prices
+        - sigma: Simulated volatilities
+        """
+        dt = T / N
+        S = np.zeros(N)
+        sigma = np.zeros(N)
+        S[0], sigma[0] = S0, sigma0
+
+        for t in range(1, N):
+            dW1 = np.random.normal(0, np.sqrt(dt))
+            dW2 = rho * dW1 + np.sqrt(1 - rho**2) * np.random.normal(0, np.sqrt(dt))
+            sigma[t] = max(0, sigma[t-1] + kappa * (theta - sigma[t-1]) * dt + eta * np.sqrt(sigma[t-1]) * dW2)
+            S[t] = S[t-1] * (1 + r * dt + np.sqrt(sigma[t-1]) * dW1)
+        return S, sigma
+    
+    @staticmethod
+    def simulate_sabr(F0=100, sigma0=0.2, T=1.0, N=252, rho=-0.5, beta=0.5, alpha=0.2):
+        """
+        Simulates the SABR model for forward price volatility.
+        
+        Equations:
+        dF(t) = σ(t) F(t)^β dW₁(t)
+        dσ(t) = α σ(t) dW₂(t)
+        dW₁(t) dW₂(t) = ρ dt
+        
+        Returns:
+        - F: Simulated forward prices
+        - sigma: Simulated volatilities
+        """
+        dt = T / N
+        F = np.zeros(N)
+        sigma = np.zeros(N)
+        F[0], sigma[0] = F0, sigma0
+
+        for t in range(1, N):
+            dW1 = np.random.normal(0, np.sqrt(dt))
+            dW2 = rho * dW1 + np.sqrt(1 - rho**2) * np.random.normal(0, np.sqrt(dt))
+            sigma[t] = max(0, sigma[t-1] + alpha * sigma[t-1] * dW2)
+            F[t] = max(0, F[t-1] * (1 + sigma[t-1] * (max(F[t-1], 1e-6) ** beta) * dW1))
+        return F, sigma
