@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Date: 02/03/2025
+Date: 09/03/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -74,7 +74,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.26.0'
+    VERSION = '1.27.0'
 
     @staticmethod
     def get_trading_days():
@@ -1950,8 +1950,8 @@ class RiskOptima:
 
         titles = [
             "My Current\nPortfolio",
-            "Optimized\nOptimized Portfolio",
-            "Market Benchmark\n(S&P 500)"
+            "Optimized\nPortfolio",
+            f"Market Benchmark\n({market_benchmark})"
         ]
         stats_lists = [
             [
