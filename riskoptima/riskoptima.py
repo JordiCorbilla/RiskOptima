@@ -74,7 +74,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.33.0'
+    VERSION = '1.34.0'
 
     @staticmethod
     def get_trading_days():
@@ -3232,6 +3232,10 @@ class RiskOptima:
             ncol=3
         )
     
+        ax1.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
+        ax1.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
+        ax1.set_axisbelow(True)
+        
         plt.tight_layout()
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -3376,6 +3380,10 @@ class RiskOptima:
             ncol=3
         )
     
+        ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
+        ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
+        ax.set_axisbelow(True)
+        
         plt.tight_layout()
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
