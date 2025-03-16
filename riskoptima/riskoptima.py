@@ -74,7 +74,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.32.0'
+    VERSION = '1.33.0'
 
     @staticmethod
     def get_trading_days():
@@ -3175,7 +3175,7 @@ class RiskOptima:
         # ------------------------------
         fig, ax1 = plt.subplots(figsize=(20, 12))
     
-        ax1.set_title('SPY & VIX Strategy ({} to {})'.format(start_date, end_date))
+        ax1.set_title('[RiskOptima] SPY & VIX Index Vol Divergence Entry Strategy {start_date} to {end_date}')
     
         # Plot SPY
         ax1.plot(df.index, df['SPY_Close'], label='SPY Close', color='blue')
@@ -3212,13 +3212,39 @@ class RiskOptima:
         ax2.plot(df.index, df['VIX_Close'], label='VIX Close', color='green', alpha=0.6)
         ax2.tick_params(axis='y', labelcolor='green')
     
+        plt.text(
+            0.995, -0.15,
+            f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7,
+            transform=ax1.transAxes, ha='right'
+        )
     
         # Combine legends (SPY + VIX + Signals)
         lines_1, labels_1 = ax1.get_legend_handles_labels()
         lines_2, labels_2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper left')
+    
+        ax1.legend(
+            lines_1 + lines_2, labels_1 + labels_2,
+            loc='upper center',
+            bbox_to_anchor=(0.5, -0.08),
+            fancybox=True,
+            shadow=True,
+            ncol=3
+        )
     
         plt.tight_layout()
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        plots_folder = "plots"
+        
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+            
+        plot_path = os.path.join(plots_folder, f"riskoptima_index_vol_divergence_signals_entry_{timestamp}.png")
+        
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        
         plt.show()
     
         return df_signals, df
@@ -3287,7 +3313,7 @@ class RiskOptima:
         """Plot the exit strategy with entry and exit points."""
         fig, ax = plt.subplots(figsize=(20, 12))
     
-        title=f'[RiskOptima] SPY VIX Index Vol Divergence Entry/Exit Signals {start_date} to {end_date}'
+        title=f'[RiskOptima] SPY & VIX Index Vol Divergence Entry/Exit Signals {start_date} to {end_date}'
         ax.set_title(title)
     
         # Plot SPY
@@ -3359,7 +3385,7 @@ class RiskOptima:
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
             
-        plot_path = os.path.join(plots_folder, f"riskoptima_index_vol_divergence_signals_{timestamp}.png")
+        plot_path = os.path.join(plots_folder, f"riskoptima_index_vol_divergence_signals_entry_exit_{timestamp}.png")
         
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "riskoptima"
-version = "1.32.0"
+version = "1.33.0"
 description = "RiskOptima is a powerful Python toolkit for financial risk analysis, portfolio optimization, and advanced quantitative modeling. It integrates state-of-the-art methodologies, including Monte Carlo simulations, Value at Risk (VaR), Conditional VaR (CVaR), Black-Scholes, Heston, and Merton Jump Diffusion models, to aid investors in making data-driven investment decisions."
 authors = ["Jordi Corbilla <jordi.coll.corbilla@gmail.com>"]
 license = "MIT"
