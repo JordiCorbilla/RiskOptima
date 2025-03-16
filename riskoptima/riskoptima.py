@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Date: 09/03/2025
+Date: 16/03/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -74,7 +74,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.27.0'
+    VERSION = '1.29.0'
 
     @staticmethod
     def get_trading_days():
@@ -3091,3 +3091,195 @@ class RiskOptima:
             sigma[t] = max(0, sigma[t-1] + alpha * sigma[t-1] * dW2)
             F[t] = max(0, F[t-1] * (1 + sigma[t-1] * (max(F[t-1], 1e-6) ** beta) * dW1))
         return F, sigma
+    
+    @staticmethod
+    def run_spy_vix_strategy(start_date, end_date, symbol_spy, symbol_vix, ma_window):
+        # 1) Download raw data with auto_adjust turned OFF to avoid surprises
+        df_spy_raw = yf.download(symbol_spy, start=start_date, end=end_date, auto_adjust=False)
+        df_vix_raw = yf.download(symbol_vix, start=start_date, end=end_date, auto_adjust=False)
+    
+        # 2) Force a single-column DataFrame
+        df_spy = df_spy_raw['Close'].rename('SPY_Close').to_frame()
+        df_vix = df_vix_raw['Close'].rename('VIX_Close').to_frame()
+    
+        # 3) Merge on date index
+        df = pd.merge(df_spy, df_vix, how='inner', left_index=True, right_index=True)
+        
+        # 4) Rolling stats
+        df['MA30'] = df['SPY_Close'].rolling(ma_window).mean()
+        df['STD30'] = df['SPY_Close'].rolling(ma_window).std()
+        df['Upper_Band'] = df['MA30'] + 2 * df['STD30']
+        df['Lower_Band'] = df['MA30'] - 2 * df['STD30']
+    
+        def is_local_min(series, i):
+            if i == 0 or i == len(series) - 1:
+                return False
+            # Make sure this returns a single True/False:
+            return series.iloc[i] < series.iloc[i - 1] and series.iloc[i] < series.iloc[i + 1]
+    
+        signals = []
+        min_indices = []
+    
+        # 5) Detect local minima
+        for i in range(1, len(df) - 1):
+            if is_local_min(df['SPY_Close'], i):
+                min_indices.append(i)
+    
+        # 6) Check for second-lower-low signals
+        for idx in range(len(min_indices) - 1):
+            i1 = min_indices[idx]
+            i2 = min_indices[idx + 1]
+    
+            low1 = df['SPY_Close'].iloc[i1]
+            low2 = df['SPY_Close'].iloc[i2]
+            if low2 < low1:
+                vix1 = df['VIX_Close'].iloc[i1]
+                vix2 = df['VIX_Close'].iloc[i2]
+                if (vix2 > vix1) and (low2 <= df['Upper_Band'].iloc[i2]) and (low2 >= df['Lower_Band'].iloc[i2]):
+                    signal_date = df.index[i2]
+                    signals.append({
+                        'SignalDate': signal_date,
+                        'SPY_Close': low2,
+                        'VIX_Close': vix2,
+                        'Comment': 'Second lower low + higher VIX + within ±2σ'
+                    })
+    
+        df_signals = pd.DataFrame(signals)
+        return df_signals, df
+
+    
+    @staticmethod
+    def exit_strategy(df, df_signals, intraday=True):
+        """
+        Identifies exit points for each entry based on:
+        1) SPY goes above the 30-day MA
+        2) SPY goes below the lower Bollinger band
+        """
+        exits = []
+        for _, signal in df_signals.iterrows():
+            entry_date = signal['SignalDate']
+            entry_price = signal['SPY_Close']
+            df_after_entry = df.loc[entry_date:]
+    
+            for i, row in df_after_entry.iterrows():
+                # Condition 1: Above 30-day MA
+                if row['SPY_Close'] > row['MA30']:
+                    if intraday or (i != entry_date):
+                        exits.append({
+                            'EntryDate': entry_date,
+                            'ExitDate': i,
+                            'EntryPrice': entry_price,
+                            'ExitPrice': row['SPY_Close'],
+                            'Reason': 'Above 30-day MA'
+                        })
+                    break
+    
+                # Condition 2: Below Lower Band
+                if row['SPY_Close'] < row['Lower_Band']:
+                    if intraday or (i != entry_date):
+                        exits.append({
+                            'EntryDate': entry_date,
+                            'ExitDate': i,
+                            'EntryPrice': entry_price,
+                            'ExitPrice': row['SPY_Close'],
+                            'Reason': 'Below Lower Band'
+                        })
+                    break
+    
+        return pd.DataFrame(exits)
+    
+    @staticmethod
+    def calculate_total_returns(df_signals, df_exits):
+        """
+        Calculates cumulative returns across all entry/exit pairs.
+        """
+        returns = []
+        total_return = 0
+        for _, exit_row in df_exits.iterrows():
+            entry_price = exit_row['EntryPrice']
+            exit_price = exit_row['ExitPrice']
+            pnl = (exit_price - entry_price) / entry_price
+            total_return += pnl
+            returns.append({
+                'EntryDate': exit_row['EntryDate'],
+                'ExitDate': exit_row['ExitDate'],
+                'EntryPrice': entry_price,
+                'ExitPrice': exit_price,
+                'PnL': pnl,
+                'TotalReturn': total_return
+            })
+        return pd.DataFrame(returns)
+    
+    @staticmethod
+    def final_plot_and_summary(df, df_signals, df_exits, returns,
+                               save_plot_path=None):
+        """
+        Generates the final plot (including the RiskOptima stamp),
+        then prints out the DataFrames nicely.
+        """
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.set_title('SPY Exit Strategy')
+    
+        # Plot SPY
+        ax.plot(df.index, df['SPY_Close'], label='SPY Close', color='blue')
+        ax.plot(df.index, df['MA30'], label='30-day MA (SPY)', color='orange')
+        ax.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)', 
+                color='orange', linestyle='--', alpha=0.6)
+        ax.plot(df.index, df['Lower_Band'], label='Lower Band (MA - 2σ)',
+                color='orange', linestyle='--', alpha=0.6)
+    
+        # Highlight entry signals
+        ax.scatter(df_signals['SignalDate'], df_signals['SPY_Close'],
+                   color='green', marker='^', s=100, label='Entry Signal')
+        for i, row in df_signals.iterrows():
+            ax.text(row['SignalDate'], row['SPY_Close'] - 20,
+                    f"{row['SignalDate'].strftime('%Y-%m-%d')}\n{row['SPY_Close']:.2f}",
+                    fontsize=8, color='green', ha='center')
+    
+        # Highlight exit points
+        ax.scatter(df_exits['ExitDate'], df_exits['ExitPrice'],
+                   color='red', marker='v', s=100, label='Exit Signal')
+        for i, row in df_exits.iterrows():
+            ax.text(row['ExitDate'], row['ExitPrice'] + 10,
+                    f"{row['ExitDate'].strftime('%Y-%m-%d')}\n{row['ExitPrice']:.2f}",
+                    fontsize=8, color='red', ha='center')
+    
+        ax.set_xlabel('Date')
+        ax.set_ylabel('SPY Price')
+        ax.legend(loc='upper left')
+    
+        # Add the RiskOptima stamp
+        plt.text(
+            0.995, -0.15,
+            f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7,
+            transform=ax.transAxes, ha='right'
+        )
+    
+        plt.tight_layout()
+    
+        # Save the figure if requested
+        if save_plot_path:
+            plt.savefig(save_plot_path, dpi=150, bbox_inches='tight')
+        plt.show()
+    
+    @staticmethod
+    def run_index_vol_divergence_signals(start_date = "2024-01-01", end_date = "2025-01-14",
+                                         symbol_spy = "SPY", symbol_vix = "^VIX", ma_window = 30):
+        """
+        Example usage of the full pipeline in one function call.
+        Adjust your 'plots/' directory path as needed.
+        """
+    
+        # 1) Fetch signals
+        df_signals, df = RiskOptima.run_spy_vix_strategy(start_date, end_date, symbol_spy, symbol_vix, ma_window)
+        # 2) Calculate exits
+        df_exits = RiskOptima.exit_strategy(df, df_signals, intraday=False)
+        # 3) Calculate returns
+        returns = RiskOptima.calculate_total_returns(df_signals, df_exits)
+        # 4) Plot and summarize
+        save_path = "plots/index_vol_divergence_signals.png"
+        RiskOptima.final_plot_and_summary(df, df_signals, df_exits, returns, save_plot_path=save_path)
+    
+        # Return them if needed for further processing
+        return df_signals, df_exits, returns
