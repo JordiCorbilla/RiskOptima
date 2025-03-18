@@ -144,14 +144,27 @@ RiskOptima.run_portfolio_probability_analysis(
 ```
 ![probability_distributions_of_final_fund_returns20250205_212501](https://github.com/user-attachments/assets/8ea20d1f-e74f-4559-b66f-41ee657dd63b)
 
-### Example 54: Macaulay Duration
-```
+### Example 5: Macaulay Duration
+
+```python
 from riskoptima import RiskOptima
 cf = RiskOptima.bond_cash_flows_v2(4, 1000, 0.06, 2)  # 2 years, semi-annual, hence 4 periods
 md_2 = RiskOptima.macaulay_duration_v3(cf, 0.05, 2)
 md_2
 ```
 ![image](https://github.com/user-attachments/assets/8bf54461-7256-4162-9230-f29aeeef4a10)
+
+### Example 6:  Market Turns with SPY & VIX Divergence
+
+```python
+ANALYSIS_START_DATE = RiskOptima.get_previous_year_date(RiskOptima.get_previous_working_day(), 1)
+ANALYSIS_END_DATE   = RiskOptima.get_previous_working_day()
+
+df_signals, df_exits, returns = RiskOptima.run_index_vol_divergence_signals(start_date=ANALYSIS_START_DATE, 
+                                                                            end_date=ANALYSIS_END_DATE)
+```
+![riskoptima_index_vol_divergence_signals_entry_20250316_200414](https://github.com/user-attachments/assets/fe9b0e73-34f2-4175-bad6-80c75b514fe5)
+
 
 ## Documentation
 
