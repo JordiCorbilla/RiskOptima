@@ -6,9 +6,9 @@
 Author: Jordi Corbilla
 Date: 29/03/2025
 
-This module (extended) provides various financial functions and tools for analyzing 
-and handling portfolio data learned from EDHEC Business School, computing statistical 
-metrics, and optimizing portfolios based on different criteria. 
+This module (extended) provides various financial functions and tools for analyzing
+and handling portfolio data learned from EDHEC Business School, computing statistical
+metrics, and optimizing portfolios based on different criteria.
 
 Main features include:
 - Loading and formatting financial datasets (Fama-French, EDHEC Hedge Fund Index, etc.)
@@ -32,7 +32,7 @@ Main features include:
 - SABR model for forward price volatility simulation
 - Correlation Matrix
 
-Dependencies: 
+Dependencies:
 pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
 matplotlib, seaborn, xgboost, squarify
 """
@@ -68,8 +68,8 @@ import os
 
 import warnings
 warnings.filterwarnings(
-    "ignore", 
-    category=FutureWarning, 
+    "ignore",
+    category=FutureWarning,
     message=".*DataFrame.std with axis=None is deprecated.*"
 )
 
@@ -250,7 +250,7 @@ class RiskOptima:
 
         :param returns: pandas Series or numpy array of investment returns.
         :param float risk_free_rate: Annualized risk-free rate (e.g., yield on government bonds).
-        :param int periods_per_year: Number of periods per year (e.g., 12 for monthly, 252 for daily). 
+        :param int periods_per_year: Number of periods per year (e.g., 12 for monthly, 252 for daily).
                                      Defaults to RiskOptima.get_trading_days() for daily data.
         :return: float Sharpe Ratio.
         """
@@ -283,16 +283,16 @@ class RiskOptima:
         """
         Takes a time series of asset returns.
         Returns a DataFrame with columns for
-        the wealth index, 
-        the previous peaks, and 
+        the wealth index,
+        the previous peaks, and
         the percentage drawdown
         """
         wealth_index = 1000 * (1 + return_series).cumprod()
         previous_peaks = wealth_index.cummax()
         drawdowns = (wealth_index - previous_peaks) / previous_peaks
         return pd.DataFrame({
-            "Wealth": wealth_index, 
-            "Previous Peak": previous_peaks, 
+            "Wealth": wealth_index,
+            "Previous Peak": previous_peaks,
             "Drawdown": drawdowns
         })
 
@@ -382,7 +382,7 @@ class RiskOptima:
         rets = [RiskOptima.portfolio_return(w, expected_returns) for w in weights]
         volatilities = [RiskOptima.portfolio_volatility(w, cov) for w in weights]
         ef = pd.DataFrame({
-            "Returns": rets, 
+            "Returns": rets,
             "Volatility": volatilities
         })
         return ef.plot.line(x="Volatility", y="Returns", style=style)
@@ -448,13 +448,13 @@ class RiskOptima:
         Returns a list of weights that represent a grid of n_points on the efficient frontier
         """
         target_returns = np.linspace(expected_returns.min(), expected_returns.max(), n_points)
-        weights = [RiskOptima.minimize_volatility(target_return, expected_returns, cov) 
+        weights = [RiskOptima.minimize_volatility(target_return, expected_returns, cov)
                    for target_return in target_returns]
         return weights
 
     @staticmethod
     def plot_ef(n_points, expected_returns, cov, style='.-',
-                legend=False, show_cml=False, riskfree_rate=0, 
+                legend=False, show_cml=False, riskfree_rate=0,
                 show_ew=False, show_gmv=False):
         """
         Plots the multi-asset efficient frontier
@@ -463,7 +463,7 @@ class RiskOptima:
         rets = [RiskOptima.portfolio_return(w, expected_returns) for w in weights]
         volatilities = [RiskOptima.portfolio_volatility(w, cov) for w in weights]
         ef = pd.DataFrame({
-            "Returns": rets, 
+            "Returns": rets,
             "Volatility": volatilities
         })
         ax = ef.plot.line(x="Volatility", y="Returns", style=style, legend=legend)
@@ -500,7 +500,7 @@ class RiskOptima:
         rets = [RiskOptima.portfolio_return(w, expected_returns) for w in weights]
         volatilities = [RiskOptima.portfolio_volatility(w, cov) for w in weights]
         ef = pd.DataFrame({
-            "Returns": rets, 
+            "Returns": rets,
             "Volatility": volatilities
         })
         ef.plot.line(x="Volatility", y="Returns", style=style, legend=legend, ax=ax)
@@ -513,7 +513,7 @@ class RiskOptima:
             vol_msr = RiskOptima.portfolio_volatility(w_msr, cov)
             cml_x = [0, vol_msr]
             cml_y = [riskfree_rate, r_msr]
-            ax.plot(cml_x, cml_y, color='blue', marker='o', linestyle='dashed', 
+            ax.plot(cml_x, cml_y, color='blue', marker='o', linestyle='dashed',
                     linewidth=2, markersize=10, label='Capital Market Line (CML)')
         if show_ew:
             n = expected_returns.shape[0]
@@ -542,7 +542,7 @@ class RiskOptima:
         account_value = start
         floor_value = start * floor
         peak = account_value
-        if isinstance(risky_returns, pd.Series): 
+        if isinstance(risky_returns, pd.Series):
             risky_returns = pd.DataFrame(risky_returns, columns=["R"])
 
         if safe_returns is None:
@@ -576,7 +576,7 @@ class RiskOptima:
         risky_wealth = start * (1 + risky_returns).cumprod()
         backtest_result = {
             "Wealth": account_history,
-            "Risky Wealth": risky_wealth, 
+            "Risky Wealth": risky_wealth,
             "Risk Budget": cushion_history,
             "Risky Allocation": risky_w_history,
             "m": m,
@@ -647,7 +647,7 @@ class RiskOptima:
         if alpha:
             explanatory_variables = explanatory_variables.copy()
             explanatory_variables["Alpha"] = 1
-        
+
         lm = sm.OLS(dependent_variable, explanatory_variables).fit()
         return lm
 
@@ -670,7 +670,7 @@ class RiskOptima:
         bounds = ((0.0, 1.0),) * n
         weights_sum_to_1 = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
         solution = minimize(RiskOptima.portfolio_tracking_error,
-                            init_guess, 
+                            init_guess,
                             args=(dependent_variable, explanatory_variables,),
                             method='SLSQP', options={'disp': False},
                             constraints=(weights_sum_to_1,),
@@ -700,7 +700,7 @@ class RiskOptima:
     def weight_ew(returns, cap_weights=None, max_cw_mult=None, microcap_threshold=None, **kwargs):
         """
         Returns the weights of the EW portfolio based on the asset returns "returns" as a DataFrame
-        If supplied a set of capweights and a capweight tether, it is applied and reweighted 
+        If supplied a set of capweights and a capweight tether, it is applied and reweighted
         """
         n = len(returns.columns)
         ew = pd.Series(1 / n, index=returns.columns)
@@ -748,7 +748,7 @@ class RiskOptima:
     @staticmethod
     def weight_gmv(returns, cov_estimator=sample_covariance, **kwargs):
         """
-        Produces the weights of the GMV portfolio given a covariance matrix of the returns 
+        Produces the weights of the GMV portfolio given a covariance matrix of the returns
         """
         est_cov = cov_estimator(returns, **kwargs)
         return RiskOptima.global_minimum_volatility(est_cov)
@@ -765,11 +765,11 @@ class RiskOptima:
         np.fill_diagonal(ccor, 1.)
         sd = returns.std(axis=0)
         return pd.DataFrame(ccor * np.outer(sd, sd), index=returns.columns, columns=returns.columns)
-    
+
     @staticmethod
     def shrinkage_covariance(returns, delta=0.5, **kwargs):
         """
-        Covariance estimator that shrinks between the 
+        Covariance estimator that shrinks between the
         Sample Covariance and the Constant Correlation Estimators
         """
         prior = RiskOptima.cc_covariance(returns, **kwargs)
@@ -819,7 +819,7 @@ class RiskOptima:
     @staticmethod
     def weight_erc(returns, cov_estimator=sample_covariance, **kwargs):
         """
-        Produces the weights of the ERC portfolio given a covariance matrix of the returns 
+        Produces the weights of the ERC portfolio given a covariance matrix of the returns
         """
         est_cov = cov_estimator(returns, **kwargs)
         return RiskOptima.equal_risk_contributions(est_cov)
@@ -875,16 +875,16 @@ class RiskOptima:
         b and r_0 are assumed to be the annualized rates, not the short rate
         and the returned values are the annualized rates as well
         """
-        if r_0 is None: 
+        if r_0 is None:
             r_0 = b
         r_0 = RiskOptima.ann_to_inst(r_0)
         dt = 1/steps_per_year
         num_steps = int(n_years*steps_per_year) + 1 # because n_years might be a float
-        
+
         shock = np.random.normal(0, scale=np.sqrt(dt), size=(num_steps, n_scenarios))
         rates = np.empty_like(shock)
         rates[0] = r_0
-    
+
         ## For Price Generation
         h = math.sqrt(a**2 + 2*sigma**2)
         prices = np.empty_like(shock)
@@ -960,7 +960,7 @@ class RiskOptima:
     @staticmethod
     def match_durations(cf_t, cf_s, cf_l, discount_rate):
         """
-        Returns the weight W in cf_s that, along with (1-W) in cf_l 
+        Returns the weight W in cf_s that, along with (1-W) in cf_l
         will have an effective duration that matches cf_t
         """
         d_t = RiskOptima.macaulay_duration(cf_t, discount_rate)
@@ -1009,7 +1009,7 @@ class RiskOptima:
         Returns an T x N DataFrame of PSP Weights
         """
         return pd.DataFrame(data = w1, index=r1.index, columns=r1.columns)
-    
+
     @staticmethod
     def terminal_values(rets):
         """
@@ -1024,7 +1024,7 @@ class RiskOptima:
         Produce Summary Statistics on the terminal values per invested dollar
         across a range of N scenarios
         rets is a T x N DataFrame of returns, where T is the time-step (we assume rets is sorted by time)
-        Returns a 1 column DataFrame of Summary Stats indexed by the stat name 
+        Returns a 1 column DataFrame of Summary Stats indexed by the stat name
         """
         terminal_wealth = (rets+1).prod()
         breach = terminal_wealth < floor
@@ -1121,7 +1121,7 @@ class RiskOptima:
         and r is the per-period interest rate
         returns a DataFrame indexed by t
         """
-        discounts = pd.DataFrame([(1 + r / freq) ** -(t * freq) for t in t], 
+        discounts = pd.DataFrame([(1 + r / freq) ** -(t * freq) for t in t],
                                  index=t, columns=['df'])
         return discounts
 
@@ -1227,10 +1227,10 @@ class RiskOptima:
     @staticmethod
     def calculate_statistics(data, risk_free_rate=0.0):
         """
-        Calculates daily returns, covariance matrix, mean daily returns, 
-        annualized returns, annualized volatility, and Sharpe ratio 
+        Calculates daily returns, covariance matrix, mean daily returns,
+        annualized returns, annualized volatility, and Sharpe ratio
         for the entire dataset.
-    
+
         :param data: A pandas DataFrame of adjusted close prices.
         :param risk_free_rate: The risk-free rate, default is 0.0 (for simplicity).
         :return: daily_returns (DataFrame), cov_matrix (DataFrame)
@@ -1240,13 +1240,13 @@ class RiskOptima:
         return daily_returns, cov_matrix
 
     @staticmethod
-    def run_monte_carlo_simulation(daily_returns, cov_matrix, 
+    def run_monte_carlo_simulation(daily_returns, cov_matrix,
                                    num_portfolios=100_000, risk_free_rate=0.0):
         """
         Runs the Monte Carlo simulation to generate a large number of random portfolios,
         calculates their performance metrics (annualized return, volatility, Sharpe ratio),
         and returns a DataFrame of results as well as an array of the weight vectors.
-    
+
         :param daily_returns: DataFrame of asset daily returns.
         :param cov_matrix: Covariance matrix of asset daily returns.
         :param num_portfolios: Number of random portfolios to simulate.
@@ -1262,11 +1262,11 @@ class RiskOptima:
             weights_record[:, i] = weights
 
             portfolio_return = np.sum(weights * daily_returns.mean()) * RiskOptima.TRADING_DAYS
-    
+
             portfolio_stddev = np.sqrt(
                 np.dot(weights.T, np.dot(cov_matrix, weights))
             ) * np.sqrt(RiskOptima.TRADING_DAYS)
-    
+
             sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_stddev
             results[0, i] = portfolio_return
             results[1, i] = portfolio_stddev
@@ -1285,7 +1285,7 @@ class RiskOptima:
         """
         market_data = yf.download([market_ticker], start=start_date, end=end_date, progress=False)['Close']
         if isinstance(market_data, pd.DataFrame):
-            market_data = market_data[market_ticker] 
+            market_data = market_data[market_ticker]
         market_daily_returns = market_data.pct_change(fill_method=None).dropna()
 
         market_return = market_daily_returns.mean() * RiskOptima.TRADING_DAYS
@@ -1332,11 +1332,11 @@ class RiskOptima:
 
         for ret in target_returns:
             constraints = (
-                {'type':'eq', 'fun': lambda w: np.sum(w) - 1}, 
+                {'type':'eq', 'fun': lambda w: np.sum(w) - 1},
                 {'type':'eq', 'fun': lambda w: RiskOptima.portfolio_performance(w, mean_returns, cov_matrix)[0] - ret}
             )
-            result = minimize(RiskOptima.min_volatility, 
-                              init_guess, 
+            result = minimize(RiskOptima.min_volatility,
+                              init_guess,
                               args=(mean_returns, cov_matrix),
                               method='SLSQP',
                               bounds=bounds,
@@ -1395,7 +1395,7 @@ class RiskOptima:
     def calculate_portfolio_allocation(investment_allocation):
         """
         Normalize portfolio allocations based on the investment amounts provided.
-    
+
         :param dict investment_allocation: A dictionary mapping stock tickers to their investment amounts (e.g., {'AAPL': 1000, 'MSFT': 2000}).
         :return: List of stock tickers and a numpy array of normalized weights.
         """
@@ -1408,7 +1408,7 @@ class RiskOptima:
     def fetch_historical_stock_prices(tickers, start_date, end_date):
         """
         Retrieve historical stock price data for a list of tickers using Yahoo Finance.
-    
+
         :param list tickers: List of stock ticker symbols.
         :param str start_date: Start date for historical data in 'YYYY-MM-DD' format.
         :param str end_date: End date for historical data in 'YYYY-MM-DD' format.
@@ -1426,7 +1426,7 @@ class RiskOptima:
                                            num_simulations=100000):
         """
         Execute mean-variance optimization using Monte Carlo simulation with weight constraints.
-    
+
         :param list tickers: List of stock ticker symbols to optimize.
         :param str start_date: Start date for the historical data in 'YYYY-MM-DD' format.
         :param str end_date: End date for the historical data in 'YYYY-MM-DD' format.
@@ -1526,8 +1526,8 @@ class RiskOptima:
         feature_data_scaled = scaler.fit_transform(feature_data)
         predictions = model.predict(feature_data_scaled)
         return predictions[-1]  # Return the last prediction as the future return
-    
-    
+
+
     @staticmethod
     def generate_stock_predictions(ticker, start_date, end_date, model_type='Linear Regression'):
         """
@@ -1565,7 +1565,7 @@ class RiskOptima:
             model = SVR(kernel='rbf', C=1.0, epsilon=0.1)
         else:
             raise ValueError("Invalid model type. Choose from 'Linear Regression', 'Random Forest', or 'Gradient Boosting'.")
-    
+
         # Train and evaluate the model
         avg_cv_score, mse = RiskOptima.evaluate_model(model, X_train, y_train)
         predicted_return = RiskOptima.predict_with_model(model, X_test)
@@ -1576,7 +1576,7 @@ class RiskOptima:
                                        historical_prices, tau=0.025):
         """
         Adjust market returns based on investor views and their confidences using the Black-Litterman model.
-    
+
         :param dict market_returns: Expected market returns for each asset.
         :param dict investor_views: Investor's views on the expected returns of assets.
         :param dict view_confidences: Confidence levels for each investor view.
@@ -1604,7 +1604,7 @@ class RiskOptima:
     def compute_market_returns(market_capitalizations, market_index_return):
         """
         Calculate market returns for individual assets based on market capitalizations and index return.
-    
+
         :param dict market_capitalizations: Market capitalizations of assets.
         :param float market_index_return: Return of the overall market index.
         :return: Dictionary mapping tickers to their computed market returns.
@@ -1619,7 +1619,7 @@ class RiskOptima:
     def sortino_ratio(returns, risk_free_rate):
         """
         Calculate the Sortino Ratio for a set of investment returns.
-    
+
         :param returns: pandas Series or numpy array of investment returns.
         :param float risk_free_rate: Annualized risk-free rate (e.g., yield on government bonds).
         :return: float Sortino Ratio (returns 0 if downside risk is zero).
@@ -1629,7 +1629,7 @@ class RiskOptima:
         downside_returns = np.minimum(excess_returns, 0)
         annualized_excess_return = np.mean(excess_returns) * trading_days
         annualized_downside_std_dev = np.std(downside_returns) * np.sqrt(trading_days)
-    
+
         # Return 0 if downside standard deviation is zero
         if (annualized_downside_std_dev == 0).all():  # Use `.all()` for Series comparison
             return 0.0
@@ -1639,7 +1639,7 @@ class RiskOptima:
     def information_ratio(returns, benchmark_returns):
         """
         Calculate the Information Ratio for a set of investment returns against a benchmark.
-    
+
         :param returns: pandas Series or numpy array of portfolio returns.
         :param benchmark_returns: pandas Series or numpy array of benchmark returns.
         :return: float Information Ratio.
@@ -1660,16 +1660,16 @@ class RiskOptima:
         trading_days = RiskOptima.get_trading_days()
 
         active_returns = returns - benchmark_returns
-    
+
         if np.allclose(active_returns, 0):  # If active returns are effectively zero
             return 0.0  # Explicitly return 0 for identical returns
-    
+
         annualized_active_return = np.mean(active_returns) * trading_days
         tracking_error = np.std(active_returns) * np.sqrt(trading_days)
-    
+
         if tracking_error == 0:  # Avoid division by zero
             return 0.0
-    
+
         # Return single statistic
         return annualized_active_return / tracking_error
 
@@ -1691,7 +1691,7 @@ class RiskOptima:
     def add_table_to_plot(ax, dataframe, column_descriptions=None, column_colors=None, x=1.15, y=0.2, fontsize=8, column_width=0.50):
         """
         Adds a table to the plot with consistent row heights and optional column colors.
-        
+
         :param ax: The matplotlib Axes object.
         :param dataframe: The pandas DataFrame to display as a table.
         :param column_descriptions: Optional list of column header descriptions to override the defaults.
@@ -1793,10 +1793,10 @@ class RiskOptima:
 
     @staticmethod
     def plot_efficient_frontier_monte_carlo(
-                                asset_table, 
+                                asset_table,
                                 start_date='2020-01-01',
-                                end_date='2023-01-01',    
-                                risk_free_rate=0.0, 
+                                end_date='2023-01-01',
+                                risk_free_rate=0.0,
                                 num_portfolios=10000,
                                 market_benchmark='SPY',
                                 set_ticks=False,
@@ -1809,29 +1809,29 @@ class RiskOptima:
         assets = asset_table['Asset'].tolist()
         current_weights = asset_table['Weight'].values if 'Weight' in asset_table.columns else None
         current_labels = asset_table['Label'].values if 'Label' in asset_table.columns else assets
-        
+
         # Download market data and save it to a CSV (optional)
         asset_data = RiskOptima.download_data_yfinance(assets, start_date, end_date)
-        
+
         data_folder = "data"
-        
+
         if not os.path.exists(data_folder):
             os.makedirs(data_folder)
-        
+
         data_path = os.path.join(data_folder, f'market_data_{timestamp}.csv')
 
         asset_data.to_csv(data_path)
-        
+
         # Compute daily returns and covariance matrix
         daily_returns, cov_matrix = RiskOptima.calculate_statistics(asset_data, risk_free_rate)
-        
+
         # Run Monte Carlo simulation
         simulated_portfolios, weights_record = RiskOptima.run_monte_carlo_simulation(
             daily_returns, cov_matrix,
             num_portfolios=num_portfolios,
             risk_free_rate=risk_free_rate
         )
-        
+
         # Retrieve market benchmark statistics
         market_return, market_volatility, market_sharpe = RiskOptima.get_market_statistics(
             market_benchmark, start_date, end_date, risk_free_rate
@@ -1842,7 +1842,7 @@ class RiskOptima:
         if set_ticks:
             x_ticks = np.linspace(0, 0.15, 16)  # Adjust the range and number of ticks as needed
             y_ticks = np.linspace(0, 0.30, 16)  # Adjust the range and number of ticks as needed
-        
+
         fig, ax = plt.subplots(figsize=(23, 10))
         fig.subplots_adjust(right=0.80)
 
@@ -1865,9 +1865,9 @@ class RiskOptima:
         fig.colorbar(sc, ax=ax, label='Sharpe Ratio')
         ax.set_xlabel('Volatility')
         ax.set_ylabel('Return')
-        
+
         title=f'[RiskOptima] Efficient Frontier - Monte Carlo Simulation {start_date} to {end_date}'
-        
+
         ax.set_title(title)
 
         ax.scatter(
@@ -1978,31 +1978,31 @@ class RiskOptima:
             spine.set_edgecolor('black')
 
         stats_df = RiskOptima.consolidate_stats_to_dataframe(titles, stats_lists)
-        
+
         if show_tables:
             RiskOptima.add_table_to_plot(ax, stats_df, None, None, x=x_pos_table, y=0.30, column_width=0.70, fontsize=9)
             RiskOptima.add_portfolio_terms_explanation(ax, x=x_pos_table, y=0.00, fontsize=10)
 
         plots_folder = "plots"
-        
+
         plt.text(
             0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
-        
+
         plt.tight_layout()
-        
+
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-            
+
         plot_path = os.path.join(plots_folder, f"riskoptima_efficient_frontier_monte_carlo_{timestamp}.png")
-        
+
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
 
         if show_plot:
             plt.show()
-        
-        return plt, portfolio_df, stats_df 
+
+        return plt, portfolio_df, stats_df
 
     @staticmethod
     def add_stats_text_box(ax, title, stats_list, x=1.19, y=0.34, color='green', fontsize=10):
@@ -2102,7 +2102,7 @@ class RiskOptima:
         return predicted_return, model_confidence
 
     @staticmethod
-    def calculate_performance_metrics(portfolio_returns, market_returns, risk_free_rate, 
+    def calculate_performance_metrics(portfolio_returns, market_returns, risk_free_rate,
                                       final_returns, is_market_return=False):
         """
         Helper function to produce lines of text with performance metrics
@@ -2144,7 +2144,7 @@ class RiskOptima:
             "Benchmark\n(S&P 500)"
         ]
         stats_lists = [
-            RiskOptima.calculate_performance_metrics(portfolio_returns_unoptimized, market_returns, risk_free_rate, final_returns_unoptimized),  
+            RiskOptima.calculate_performance_metrics(portfolio_returns_unoptimized, market_returns, risk_free_rate, final_returns_unoptimized),
             RiskOptima.calculate_performance_metrics(portfolio_returns_mv, market_returns, risk_free_rate, final_returns_mv),
             RiskOptima.calculate_performance_metrics(portfolio_returns_ml_mv, market_returns, risk_free_rate, final_returns_ml_mv),
             RiskOptima.calculate_performance_metrics(market_returns, market_returns, risk_free_rate, final_returns_market, True)
@@ -2166,7 +2166,7 @@ class RiskOptima:
     ):
         """
         perform portfolio analysis with Monte Carlo simulations and MPT.
-        
+
         :param investment_allocation: dict of ticker -> investment (e.g. {'AAPL':1500,'JNJ':1200,...})
         :param analysis_start_date: Start date for historical data (YYYY-MM-DD)
         :param analysis_end_date: End date for historical data (YYYY-MM-DD)
@@ -2346,38 +2346,38 @@ class RiskOptima:
         optimized_vals = portfolio_results.get("Optimized Portfolio", [])
         current_vals = portfolio_results.get("Current Portfolio", [])
         prob_text_data = []
-    
+
         if optimized_vals and current_vals:
             p_beat_current = sum(np.array(optimized_vals) > np.array(current_vals)) / len(optimized_vals)
             prob_text_data.append(["Prob(Optimized > Current)", f"{p_beat_current:.2%}"])
-    
+
         if optimized_vals and market_final_values:
             p_beat_market = sum(np.array(optimized_vals) > np.array(market_final_values)) / len(optimized_vals)
             prob_text_data.append(["Prob(Optimized > Market)", f"{p_beat_market:.2%}"])
-    
+
         df_prob = pd.DataFrame(prob_text_data, columns=["Description", "Value"])
         df_prob.set_index("Description", inplace=True)
         RiskOptima.add_table_to_plot(
             ax, df_prob, x=1.02, y=0.12, column_width=0.40, fontsize=9
         )
-       
+
     @staticmethod
     def create_portfolio_area_chart(
         asset_table,
-        end_date=None, 
-        lookback_days=5, 
+        end_date=None,
+        lookback_days=5,
         title="Portfolio Area Chart"
     ):
         """
-        Create a market-area chart with a gradient colour scheme that depends on 
+        Create a market-area chart with a gradient colour scheme that depends on
         the percentage change over a specified lookback period,
         showing each asset's return and allocation percentage.
         """
-    
+
         assets = asset_table["Asset"].tolist()
         weights = asset_table["Weight"].to_numpy()
         labels = asset_table["Label"].tolist()
-    
+
         if end_date:
             end_dt = pd.to_datetime(end_date)
             start_dt = end_dt - pd.Timedelta(days=(lookback_days + 10))
@@ -2390,16 +2390,16 @@ class RiskOptima:
             )
         else:
             data = yf.download(assets, period="1mo", interval="1d", progress=False)
-    
+
         close_prices = data["Close"]
         if len(close_prices) < lookback_days:
             raise ValueError(f"Not enough data to compute {lookback_days}-day returns.")
-    
+
         recent = close_prices.iloc[-1]
         previous = close_prices.iloc[-lookback_days]
         pct_change = ((recent - previous) / previous) * 100
         pct_change = pct_change.fillna(0)
-    
+
         t_minus_x_data = pd.DataFrame({
             "Asset": assets,
             f"Close(T-{lookback_days})": previous.values,
@@ -2407,33 +2407,33 @@ class RiskOptima:
             f"{lookback_days}d % Change": pct_change.values
         })
         print(t_minus_x_data)
-    
+
         latest_date = close_prices.index[-1].strftime('%Y-%m-%d')
         full_title = f"[RiskOptima] {title}: {lookback_days}-Day Returns as of {latest_date}"
-    
+
         assert len(weights) == len(assets), "Weights array length must match the number of assets"
-    
+
         min_val = pct_change.min()
         max_val = pct_change.max()
-    
+
         if min_val == max_val:
             min_val = max_val - 0.0001
-    
+
         cmap = mpl.colors.LinearSegmentedColormap.from_list(
-            "greyredgreen", 
+            "greyredgreen",
             [ (0.7, 0.7, 0.7),  # grey at "centre"
-              (1.0, 0.0, 0.0)   # red 
+              (1.0, 0.0, 0.0)   # red
             ],
             N=256
         )
         cmap_green = mpl.colors.LinearSegmentedColormap.from_list(
-            "greygreen", 
+            "greygreen",
             [ (0.7, 0.7, 0.7),  # grey
               (0.0, 1.0, 0.0)   # green
             ],
             N=256
         )
-    
+
         def blended_colour(value):
             if max_val <= 0:
                 ratio = (value - min_val) / (0 - min_val)
@@ -2452,18 +2452,18 @@ class RiskOptima:
                     ratio = (value - 0) / (max_val - 0)
                     ratio = np.clip(ratio, 0, 1)
                     return cmap_green(ratio)
-    
+
         colours = [blended_colour(v) for v in pct_change]
-    
+
         labels = [
             f"{name}\n"
             f"{'+' if ret > 0 else ''}{ret:.2f}%\n"
             f"Allocation: {w * 100:.1f}%"
             for name, ret, w in zip(labels, pct_change, weights)
         ]
-    
+
         sizes = weights * 100
-    
+
         fig, ax = plt.subplots(figsize=(18, 12))
         squarify.plot(
             sizes=sizes,
@@ -2476,7 +2476,7 @@ class RiskOptima:
         )
         ax.set_title(full_title, fontsize=18)
         ax.axis('off')
-    
+
         norm = mpl.colors.Normalize(vmin=min_val, vmax=max_val)
         combined_cmap = mpl.cm.RdYlGn
         cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
@@ -2484,29 +2484,29 @@ class RiskOptima:
         sm.set_array([])  # required for matplotlib < 3.2
         cbar = plt.colorbar(sm, cax=cbar_ax)
         cbar.set_label(f"{lookback_days}-Day Return (%)", fontsize=12)
-        
-        
+
+
         plt.text(
             0.995, -0.05, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
-        
+
         plots_folder = "plots"
-        
+
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-            
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plot_path = os.path.join(plots_folder, f"riskoptima_portfolio_area_chart_{timestamp}.png")
-        
+
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        
+
         plt.show()
-        
+
     @staticmethod
     def run_portfolio_optimization_mv_ml(
-        asset_table, 
-        training_start_date, 
+        asset_table,
+        training_start_date,
         training_end_date,
         model_type='Linear Regression',
         risk_free_rate=0.05,
@@ -2518,7 +2518,7 @@ class RiskOptima:
     ):
         """
         Run portfolio optimization using machine learning and mean-variance optimization.
-        
+
         Parameters:
             asset_table (pd.DataFrame): A DataFrame with columns:
                 - 'Asset': Ticker symbol.
@@ -2534,7 +2534,7 @@ class RiskOptima:
             max_volatility (float): Maximum allowed portfolio volatility.
             min_weight (float): Minimum allocation weight per asset.
             max_weight (float): Maximum allocation weight per asset.
-        
+
         The function performs the following steps:
           - Builds a portfolio dictionary from the asset table (multiplying weights by 100,000).
           - Extracts market cap information.
@@ -2543,27 +2543,27 @@ class RiskOptima:
           - Sets up an aesthetic chart with tables comparing original and optimized weights.
           - Plots cumulative returns for the original, optimized, benchmark, and ML-adjusted portfolios.
           - Annotates the plot with performance metrics.
-          
+
         Finally, the chart is saved to disk and displayed.
         """
         # Build a portfolio dictionary (dollar amounts)
         portfolio = {
-            row['Asset']: row['Weight'] * 100000 
+            row['Asset']: row['Weight'] * 100000
             for _, row in asset_table.iterrows()
         }
         # Build market caps dictionary from the asset table
         market_caps = {
-            row['Asset']: row['MarketCap'] 
+            row['Asset']: row['MarketCap']
             for _, row in asset_table.iterrows()
         }
         # Get labels for display (as a numpy array)
         my_current_labels = asset_table['Label'].values
-    
+
         # Define default table column descriptions and colors for the chart table
         column_descriptions = [
-            "Security", 
-            "Original\nPortfolio Weights", 
-            "Mean-Variance\nOptimization", 
+            "Security",
+            "Original\nPortfolio Weights",
+            "Mean-Variance\nOptimization",
             f"{model_type} & Mean-Variance\nOptimization"
         ]
         column_colors = [
@@ -2573,29 +2573,29 @@ class RiskOptima:
             "#9ac7e6",        # Market benchmark (S&P 500)
             "#9ae69b",        # ML & Mean-Variance optimization
         ]
-        
+
         # Calculate tickers and original weights from the portfolio dictionary.
         tickers, weights = RiskOptima.calculate_portfolio_allocation(portfolio)
-        
+
         # --- Mean-Variance Optimization ---
         optimized_weights_mv = RiskOptima.perform_mean_variance_optimization(
-            tickers, training_start_date, training_end_date, 
+            tickers, training_start_date, training_end_date,
             max_volatility, min_allocation=min_weight, max_allocation=max_weight
         )
-        
+
         # --- Machine Learning Prediction for Adjusted Returns ---
         investor_views, view_confidences = RiskOptima.generate_predictions_tickers(
             tickers, training_start_date, training_end_date, model_type
         )
-        
+
         index_data = RiskOptima.fetch_historical_stock_prices(
             market_benchmark, training_start_date, training_end_date
         )
         index_return = (index_data['Close'].iloc[-1] / index_data['Close'].iloc[0]) - 1
-        
+
         # Compute market returns for each asset based on market caps and index return
         computed_market_returns = RiskOptima.compute_market_returns(market_caps, index_return)
-        
+
         historical_data = RiskOptima.fetch_historical_stock_prices(
             tickers, training_start_date, training_end_date
         )
@@ -2604,83 +2604,83 @@ class RiskOptima:
         )
         predicted_returns = dict(zip(tickers, predicted_returns))
         adjusted_returns_vector = np.array([predicted_returns[ticker] for ticker in tickers])
-        
+
         optimized_weights_ml_mv = RiskOptima.perform_mean_variance_optimization(
-            tickers, training_start_date, training_end_date, 
+            tickers, training_start_date, training_end_date,
             max_volatility, adjusted_returns_vector, min_weight, max_weight
         )
-        
+
         # --- Backtesting ---
         backtesting_start_date = training_end_date
         backtesting_end_date = RiskOptima.get_previous_working_day()
-        
+
         historical_data_backtest = RiskOptima.fetch_historical_stock_prices(
             tickers, backtesting_start_date, backtesting_end_date
         )
         # Forward-fill missing data and compute daily returns
         historical_data_filled = historical_data_backtest['Close'].ffill()
         daily_returns_backtest = historical_data_filled.pct_change()
-        
+
         portfolio_returns_ml_mv = daily_returns_backtest.dot(optimized_weights_ml_mv)
         cumulative_returns_ml_mv = (1 + portfolio_returns_ml_mv).cumprod()
-        
+
         portfolio_returns_mv = daily_returns_backtest.dot(optimized_weights_mv)
         cumulative_returns_mv = (1 + portfolio_returns_mv).cumprod()
-        
+
         market_data = RiskOptima.fetch_historical_stock_prices(
             market_benchmark, backtesting_start_date, backtesting_end_date
         )['Close']
         market_data_filled = market_data.ffill()
         market_returns_series = market_data_filled.pct_change()
         cumulative_market_returns = (1 + market_returns_series).cumprod()
-        
+
         portfolio_returns_unoptimized = daily_returns_backtest.dot(weights)
         cumulative_returns_unoptimized = (1 + portfolio_returns_unoptimized).cumprod()
-        
+
         # Format weights as percentages for comparison
         weights_pct = [f'{w * 100:.2f}%' for w in weights]
         optimized_weights_pct = [f'{w * 100:.2f}%' for w in optimized_weights_mv]
         optimized_weights_ml_mv_pct = [f'{w * 100:.2f}%' for w in optimized_weights_ml_mv]
-        
+
         portfolio_comparison = pd.DataFrame({
             'Original': weights_pct,
             'MV Optimization': optimized_weights_pct,
             f'{model_type} & MV Optimization': optimized_weights_ml_mv_pct
         }, index=tickers)
         portfolio_comparison.index = my_current_labels
-        
+
         # --- Chart Setup and Plotting ---
         ax, plt_obj, _ = RiskOptima.setup_chart_aesthetics(backtesting_start_date, backtesting_end_date)
         RiskOptima.add_table_to_plot(ax, portfolio_comparison, column_descriptions, x=1.02, y=0.52)
-        
+
         # Convert cumulative returns to percentage gain
         cumulative_returns_ml_mv_percent = (cumulative_returns_ml_mv - 1) * 100
         cumulative_returns_mv_percent = (cumulative_returns_mv - 1) * 100
         cumulative_returns_unoptimized_percent = (cumulative_returns_unoptimized - 1) * 100
         cumulative_market_returns_percent = (cumulative_market_returns - 1) * 100
-        
+
         final_returns_ml_mv = cumulative_returns_ml_mv_percent.iloc[-1]
         final_returns_mv = cumulative_returns_mv_percent.iloc[-1]
         final_returns_unoptimized = cumulative_returns_unoptimized_percent.iloc[-1]
         final_returns_market = cumulative_market_returns_percent.iloc[-1]
-        
+
         if isinstance(final_returns_market, pd.Series):
             final_returns_market = final_returns_market.iloc[0]
-        
+
         # Plot curves
         ax.plot(cumulative_returns_unoptimized_percent, label='Original Unoptimized Portfolio', color=column_colors[1])
         ax.plot(cumulative_returns_mv_percent, label='Portfolio Optimized with Mean-Variance', color=column_colors[2])
         ax.plot(cumulative_market_returns_percent, label='Market Index Benchmark (S&P 500)', color=column_colors[3])
         ax.plot(cumulative_returns_ml_mv_percent, label=f'Portfolio Optimized with {model_type} and Mean-Variance', color=column_colors[4])
-        
+
         RiskOptima.plot_performance_metrics(
             model_type, portfolio_returns_unoptimized, portfolio_returns_mv, portfolio_returns_ml_mv,
             market_returns_series, risk_free_rate, final_returns_unoptimized, final_returns_mv,
             final_returns_ml_mv, final_returns_market, ax, column_colors
         )
-        
+
         RiskOptima.add_ratio_explanation(ax, x=1.02, y=0.01, fontsize=9)
-        
+
         plot_title = ("[RiskOptima] Portfolio Optimization and Benchmarking: Comparing Machine Learning and Statistical "
                       "Models for Risk-Adjusted Performance")
         plt_obj.title(plot_title, fontsize=14, pad=20)
@@ -2688,24 +2688,24 @@ class RiskOptima:
         plt_obj.ylabel('Percentage Gain (%)')
         plt_obj.legend(loc='lower center')
         plt_obj.grid(True)
-        
+
         plt_obj.text(
             0.995, -0.15, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
-        
+
         plots_folder = "plots"
-        
+
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-            
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plot_path = os.path.join(plots_folder, f"riskoptima_machine_learning_optimization_{timestamp}.png")
-        
-        plt_obj.savefig(plot_path, dpi=300, bbox_inches='tight')
-        plt_obj.show()        
 
-    @staticmethod        
+        plt_obj.savefig(plot_path, dpi=300, bbox_inches='tight')
+        plt_obj.show()
+
+    @staticmethod
     def run_portfolio_probability_analysis(
         asset_table,
         analysis_start_date,
@@ -2723,22 +2723,22 @@ class RiskOptima:
           - 'Label': descriptive name.
           - 'MarketCap': market capitalisation.
           - 'Portfolio': the dollar allocation (e.g. Weight * capital).
-          
+
         Additional parameters define the analysis dates, benchmark index, risk‐free rate, simulation parameters, etc.
-        
+
         The function calls an internal RiskOptima.run_portfolio_analysis method (which uses the provided
         investment allocation) and then produces probability distribution plots and performance tables.
         """
-        
+
         def density_as_percent(y, _):
             return f"{y*100:.2f}%"
-        
+
         # Create the investment allocation dictionary from the asset table’s "Portfolio" column.
         investment_allocation = {row['Asset']: row['Portfolio'] for _, row in asset_table.iterrows()}
-        
+
         # Extract the labels for later use in tables.
         my_current_labels = asset_table['Label'].values
-    
+
         # Run the portfolio analysis.
         results = RiskOptima.run_portfolio_analysis(
             investment_allocation       = investment_allocation,
@@ -2750,7 +2750,7 @@ class RiskOptima:
             trading_days_per_year       = trading_days_per_year,
             number_of_monte_carlo_runs  = number_of_monte_carlo_runs
         )
-    
+
         # Extract results
         portfolio_results      = results["portfolio_results"]
         portfolio_metrics      = results["portfolio_metrics"]
@@ -2758,13 +2758,13 @@ class RiskOptima:
         market_expected_return = results["market_expected_return"]
         market_volatility      = results["market_volatility"]
         market_sharpe_ratio    = results["market_sharpe_ratio"]
-    
+
         initial_weights = results.get("initial_weights", None)
         optimal_weights = results.get("optimal_weights", None)
-    
+
         # Convert market final values to percentages for plotting.
         market_final_values_percent = [(val/10000.0 - 1)*100 for val in market_final_values]
-    
+
         # Set up the plot.
         fig, ax = plt.subplots(figsize=(23, 10))
         fig.subplots_adjust(right=0.80)
@@ -2772,16 +2772,16 @@ class RiskOptima:
         sns.set_style("whitegrid")
         ax.set_facecolor('white')
         plt.gcf().set_facecolor('white')
-        
+
         # Configure axis locators and formatters.
         ax.xaxis.set_major_locator(MaxNLocator(integer=False, prune=None, nbins=20))
         ax.yaxis.set_major_locator(MaxNLocator(integer=False, prune=None, nbins=15))
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:.2f}%'))
         ax.yaxis.set_major_formatter(FuncFormatter(density_as_percent))
-        
+
         ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
         ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
-    
+
         # Plot distributions for each portfolio.
         palette = sns.color_palette("pastel", len(portfolio_results) + 1)
         i = 0
@@ -2794,22 +2794,22 @@ class RiskOptima:
                 mean_val, _ = portfolio_metrics[portfolio_name]
                 ax.axvline(x=mean_val*100, color=color, linestyle='--', linewidth=1)
             i += 1
-    
+
         # Plot the market distribution.
         market_color = palette[-1]
         sns.kdeplot(market_final_values_percent, label=benchmark_index, color=market_color, ax=ax)
         ax.axvline(x=market_expected_return*100, color=market_color, linestyle='--', linewidth=1)
-    
+
         plt.xlabel('Final Fund % Returns')
         plt.ylabel('Density')
         plt.title(f'[RiskOptima] Probability Distributions of Final Fund Returns {analysis_start_date} to {analysis_end_date}', fontsize=14)
         plt.legend(loc='best')
-        
+
         plt.text(
             0.995, -0.10, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
-    
+
         # Plot additional tables using helper functions in RiskOptima.
         RiskOptima.plot_weights_table(initial_weights, optimal_weights, my_current_labels, ax)
         RiskOptima.plot_performance_table(
@@ -2820,24 +2820,24 @@ class RiskOptima:
             ax
         )
         RiskOptima.plot_probability_table(portfolio_results, market_final_values, ax)
-    
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         plots_folder = "plots"
-        
+
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-            
+
         plot_path = os.path.join(plots_folder, f"riskoptima_probability_distributions_of_final_fund_returns{timestamp}.png")
-        
+
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        plt.show()     
-        
+        plt.show()
+
     @staticmethod
     def black_scholes(S, X, T, r, sigma):
         """
         Computes the Black-Scholes option price for a European call option.
-        
+
         :param float S: Current price of the underlying asset.
         :param float X: Strike price of the option.
         :param float T: Time to expiration in years.
@@ -2849,12 +2849,12 @@ class RiskOptima:
         d2 = d1 - sigma * np.sqrt(T)
         call_price = S * si.norm.cdf(d1) - X * np.exp(-r * T) * si.norm.cdf(d2)
         return call_price
-    
+
     @staticmethod
     def heston(S_0, X, T, r, kappa, theta, sigma_v, rho, v_0, num_simulations=10000, num_steps=100):
         """
         Computes the option price using the Heston model via Monte Carlo simulation.
-        
+
         :param float S_0: Initial price of the underlying asset.
         :param float X: Strike price of the option.
         :param float T: Time to expiration in years.
@@ -2870,7 +2870,7 @@ class RiskOptima:
         """
         dt = T / num_steps
         option_payoffs = []
-    
+
         for _ in range(num_simulations):
             S_t = S_0
             v_t = v_0
@@ -2882,17 +2882,17 @@ class RiskOptima:
                 v_t = max(v_t, 0)
             option_payoff = max(S_t - X, 0)
             option_payoffs.append(option_payoff)
-    
+
         average_payoff = np.mean(option_payoffs)
         option_price = np.exp(-r * T) * average_payoff
-    
+
         return option_price
-    
+
     @staticmethod
     def merton_jump_diffusion(S_0, X, T, r, sigma, lambda_jump, m_jump, delta_jump, num_simulations=10000, num_steps=100):
         """
         Computes the option price using the Merton Jump Diffusion model via Monte Carlo simulation.
-        
+
         :param float S_0: Initial price of the underlying asset.
         :param float X: Strike price of the option.
         :param float T: Time to expiration in years.
@@ -2907,27 +2907,27 @@ class RiskOptima:
         """
         dt = T / num_steps
         S_t = np.full(num_simulations, S_0, dtype=np.float64)
-    
+
         for _ in range(num_steps):
             z = np.random.normal(size=num_simulations)
             jump_sizes = np.random.normal(loc=m_jump, scale=delta_jump, size=num_simulations)
             jumps = np.random.poisson(lambda_jump * dt, size=num_simulations)
             S_t *= np.exp((r - 0.5 * sigma ** 2) * dt + sigma * np.sqrt(dt) * z)
             S_t *= np.exp(jumps * jump_sizes)
-    
+
         option_payoffs = np.maximum(S_t - X, 0)
         average_payoff = np.mean(option_payoffs)
         option_price = np.exp(-r * T) * average_payoff
-    
+
         return option_price
-    
+
     @staticmethod
     def create_heatmap(S_0, X, T, lambda_jump, m_jump, delta_jump,
                        volatility_range=(0.1, 0.5), interest_rate_range=(0.01, 0.1),
                        volatility_steps=12, interest_rate_steps=12, sigma=0.25):
         """
         Generates a heatmap of option prices using the Merton Jump Diffusion model.
-        
+
         :param float S_0: Initial price of the underlying asset.
         :param float X: Strike price of the option.
         :param float T: Time to expiration in years.
@@ -2941,13 +2941,13 @@ class RiskOptima:
         """
         volatility_grid = np.linspace(volatility_range[0], volatility_range[1], volatility_steps)
         interest_rate_grid = np.linspace(interest_rate_range[0], interest_rate_range[1], interest_rate_steps)
-        
+
         option_prices_matrix = np.zeros((len(interest_rate_grid), len(volatility_grid)))
-        
+
         for i, r in enumerate(interest_rate_grid):
             for j, sigma_v in enumerate(volatility_grid):
                 option_prices_matrix[i, j] = RiskOptima.merton_jump_diffusion(S_0, X, T, r, sigma, lambda_jump, m_jump, delta_jump)
-        
+
         plt.figure(figsize=(8, 6))
         plt.imshow(option_prices_matrix, cmap='viridis', extent=[volatility_grid[0], volatility_grid[-1], interest_rate_grid[0], interest_rate_grid[-1]], aspect='auto', origin='lower')
         plt.colorbar(label='Option Price')
@@ -2957,12 +2957,12 @@ class RiskOptima:
         plt.gca().xaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
         plt.gca().yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
         plt.show()
-        
+
     @staticmethod
     def modified_duration(macaulay_duration, discount_rate, coupons_per_year=2):
         """
         Computes the modified duration from Macaulay duration.
-        
+
         :param macaulay_duration: The Macaulay duration of the bond.
         :param discount_rate: The bond's yield to maturity (YTM) as a decimal.
         :param coupons_per_year: Number of coupon payments per year (default is 2 for semi-annual).
@@ -2974,7 +2974,7 @@ class RiskOptima:
     def dollar_duration(modified_duration, bond_price, face_value=100):
         """
         Computes the dollar duration of the bond.
-        
+
         :param modified_duration: The modified duration of the bond.
         :param bond_price: The current price of the bond.
         :param face_value: The face value of the bond (default 100).
@@ -2986,7 +2986,7 @@ class RiskOptima:
     def pvpb(dollar_duration):
         """
         Computes the Price Value of a Basis Point (PVBP), also known as DV01.
-        
+
         :param dollar_duration: The dollar duration of the bond.
         :return: PVBP (Price Value of a Basis Point).
         """
@@ -2996,7 +2996,7 @@ class RiskOptima:
     def convexity(cash_flows, discount_rate, bond_price):
         """
         Computes the convexity of a bond.
-        
+
         :param cash_flows: A Pandas Series of bond cash flows indexed by time.
         :param discount_rate: The bond's yield to maturity (YTM) as a decimal.
         :param bond_price: The current price of the bond.
@@ -3006,16 +3006,16 @@ class RiskOptima:
         discounted_cf = cash_flows / (1 + discount_rate) ** times
         convexity = sum(discounted_cf * times * (times + 1)) / (bond_price * (1 + discount_rate) ** 2)
         return convexity
-    
+
     @staticmethod
     def simulate_hull_white(S0=100, sigma0=0.2, r=0.05, T=1.0, N=252, alpha=0.02, beta=0.1):
         """
         Simulates the Hull-White model for stochastic volatility.
-        
+
         Equations:
         dS(t) = r S(t) dt + σ(t) dW₁(t)
         dσ(t) = α σ(t) dW₂(t)
-        
+
         Parameters:
         - S0: Initial asset price
         - sigma0: Initial volatility
@@ -3024,7 +3024,7 @@ class RiskOptima:
         - N: Number of time steps
         - alpha: Volatility scaling parameter
         - beta: Unused in this model
-        
+
         Returns:
         - S: Simulated asset prices
         - sigma: Simulated volatilities
@@ -3040,17 +3040,17 @@ class RiskOptima:
             S[t] = S[t-1] * (1 + r * dt + sigma[t-1] * dW1)
             sigma[t] = sigma[t-1] + alpha * sigma[t-1] * dW2  # No mean reversion
         return S, sigma
-    
+
     @staticmethod
     def simulate_heston(S0=100, sigma0=0.2, r=0.05, T=1.0, N=252, rho=-0.5, kappa=0.5, theta=0.2, eta=0.1):
         """
         Simulates the Heston model for stochastic volatility.
-        
+
         Equations:
         dS(t) = r S(t) dt + σ(t) S(t) dW₁(t)
         dσ(t) = κ (θ - σ(t)) dt + η sqrt(σ(t)) dW₂(t)
         dW₁(t) dW₂(t) = ρ dt
-        
+
         Returns:
         - S: Simulated asset prices
         - sigma: Simulated volatilities
@@ -3066,17 +3066,17 @@ class RiskOptima:
             sigma[t] = max(0, sigma[t-1] + kappa * (theta - sigma[t-1]) * dt + eta * np.sqrt(sigma[t-1]) * dW2)
             S[t] = S[t-1] * (1 + r * dt + np.sqrt(sigma[t-1]) * dW1)
         return S, sigma
-    
+
     @staticmethod
     def simulate_sabr(F0=100, sigma0=0.2, T=1.0, N=252, rho=-0.5, beta=0.5, alpha=0.2):
         """
         Simulates the SABR model for forward price volatility.
-        
+
         Equations:
         dF(t) = σ(t) F(t)^β dW₁(t)
         dσ(t) = α σ(t) dW₂(t)
         dW₁(t) dW₂(t) = ρ dt
-        
+
         Returns:
         - F: Simulated forward prices
         - sigma: Simulated volatilities
@@ -3092,7 +3092,7 @@ class RiskOptima:
             sigma[t] = max(0, sigma[t-1] + alpha * sigma[t-1] * dW2)
             F[t] = max(0, F[t-1] * (1 + sigma[t-1] * (max(F[t-1], 1e-6) ** beta) * dW1))
         return F, sigma
-    
+
     @staticmethod
     def run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window):
         # ------------------------------
@@ -3100,18 +3100,18 @@ class RiskOptima:
         # ------------------------------
         df_base = yf.download(symbol_base, start=start_date, end=end_date, progress=False)
         df_vix = yf.download(symbol_vix, start=start_date, end=end_date, progress=False)
-    
+
         # We only need the 'Close' column from each
         df_base = df_base[['Close']]
         df_vix = df_vix[['Close']]
-    
+
         # Rename columns for clarity
         df_base.columns = ['base_Close']
         df_vix.columns = ['VIX_Close']
-    
+
         # Combine into a single DataFrame on common dates
         df = pd.merge(df_base, df_vix, how='inner', left_index=True, right_index=True)
-    
+
         # ------------------------------
         # 2. Compute MA, std, ±2σ bands
         # ------------------------------
@@ -3119,7 +3119,7 @@ class RiskOptima:
         df['STD30'] = df['base_Close'].rolling(ma_window).std()
         df['Upper_Band'] = df['MA30'] + 2 * df['STD30']
         df['Lower_Band'] = df['MA30'] - 2 * df['STD30']
-    
+
         # ------------------------------
         # Helper: find local minima
         # ------------------------------
@@ -3127,65 +3127,65 @@ class RiskOptima:
             if i == 0 or i == len(series) - 1:
                 return False
             return series.iloc[i] < series.iloc[i - 1] and series.iloc[i] < series.iloc[i + 1]
-    
+
         # ------------------------------
         # 3. Detect signals
         # ------------------------------
         signals = []
-    
+
         # Identify indices where SPY is a local minimum
         min_indices = []
         for i in range(1, len(df) - 1):
             if is_local_min(df['base_Close'], i):
                 min_indices.append(i)
-    
+
         # Look for pairs of consecutive local minima to see if the second is a "lower low"
         for idx in range(len(min_indices) - 1):
             i1 = min_indices[idx]
             i2 = min_indices[idx + 1]
-    
+
             # First and second local minima
             low1 = df['base_Close'].iloc[i1]
             low2 = df['base_Close'].iloc[i2]
-    
+
             # We want: low2 < low1 (a "second lower low")
             if low2 < low1:
                 # Check VIX "spikes"
                 vix1 = df['VIX_Close'].iloc[i1]
                 vix2 = df['VIX_Close'].iloc[i2]
-    
+
                 # Conditions: higher VIX and SPY within ±2σ
                 if (vix2 > vix1) and \
                    (df['base_Close'].iloc[i2] <= df['Upper_Band'].iloc[i2]) and \
                    (df['base_Close'].iloc[i2] >= df['Lower_Band'].iloc[i2]):
-    
+
                     signal_date = df.index[i2]
                     close_price = df['base_Close'].iloc[i2]
-    
+
                     signals.append({
                         'SignalDate': signal_date,
                         'base_Close': close_price,
                         'VIX_Close': vix2,
                         'Comment': 'Second lower low + higher VIX + within ±2σ'
                     })
-    
+
         df_signals = pd.DataFrame(signals)
-    
+
         # ------------------------------
         # 4. Plot the data and signals
         # ------------------------------
         fig, ax1 = plt.subplots(figsize=(20, 12))
-    
+
         ax1.set_title(f'[RiskOptima] {symbol_base} & VIX Index Vol Divergence Entry Strategy {start_date} to {end_date}')
-    
+
         # Plot SPY
         ax1.plot(df.index, df['base_Close'], label=f'{symbol_base} Close', color='blue')
         ax1.plot(df.index, df['MA30'], label=f'30-day MA ({symbol_base})', color='orange')
-        ax1.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)', 
+        ax1.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)',
                  color='orange', linestyle='--', alpha=0.6)
         ax1.plot(df.index, df['Lower_Band'], label='Lower Band (MA - 2σ)',
                  color='orange', linestyle='--', alpha=0.6)
-    
+
         # Highlight entry signals on SPY
         ax1.scatter(
             df_signals['SignalDate'],
@@ -3195,35 +3195,35 @@ class RiskOptima:
             s=100,
             label='Entry Signal'
         )
-    
+
         for i, row in df_signals.iterrows():
             ax1.text(
                 row['SignalDate'], row['base_Close'] - 20,
                 f"{row['SignalDate'].strftime('%d/%m')}\n{row['base_Close']:.2f}",
                 fontsize=8, color='green', ha='center'
             )
-    
+
         ax1.set_xlabel('Date')
         ax1.set_ylabel(f'{symbol_base} Price', color='blue')
         ax1.tick_params(axis='y', labelcolor='blue')
-    
+
         # Plot VIX on secondary y-axis
         ax2 = ax1.twinx()
         ax2.set_ylabel('VIX', color='green')
         ax2.plot(df.index, df['VIX_Close'], label='VIX Close', color='green', alpha=0.6)
         ax2.tick_params(axis='y', labelcolor='green')
-    
+
         plt.text(
             0.995, -0.15,
             f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7,
             transform=ax1.transAxes, ha='right'
         )
-    
+
         # Combine legends (SPY + VIX + Signals)
         lines_1, labels_1 = ax1.get_legend_handles_labels()
         lines_2, labels_2 = ax2.get_legend_handles_labels()
-    
+
         ax1.legend(
             lines_1 + lines_2, labels_1 + labels_2,
             loc='upper center',
@@ -3232,29 +3232,29 @@ class RiskOptima:
             shadow=True,
             ncol=3
         )
-    
+
         ax1.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
         ax1.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
         ax1.set_axisbelow(True)
-        
+
         plt.tight_layout()
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         plots_folder = "plots"
-        
+
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-            
+
         plot_path = os.path.join(plots_folder, f"riskoptima_index_vol_divergence_signals_entry_{timestamp}.png")
-        
+
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
-        
+
         plt.show()
-    
+
         return df_signals, df
 
-    
+
     @staticmethod
     def exit_strategy(df, df_signals, symbol_base='SPY', intraday=True):
         """Identify exit points for each entry based on the exit strategy."""
@@ -3262,10 +3262,10 @@ class RiskOptima:
         for index, signal in df_signals.iterrows():
             entry_date = signal['SignalDate']
             entry_price = signal['base_Close']
-    
+
             # Find the data after the signal date
             df_after_entry = df.loc[entry_date:]
-    
+
             for i, row in df_after_entry.iterrows():
                 # First exit condition: SPY goes above the 30-day moving average
                 if row['base_Close'] > row['MA30']:
@@ -3278,7 +3278,7 @@ class RiskOptima:
                             'Reason': 'Above 30-day MA'
                         })
                     break
-    
+
                 # Second exit condition: SPY goes below the lower Bollinger band
                 if row['base_Close'] < row['Lower_Band']:
                     if intraday or (i != entry_date):
@@ -3290,9 +3290,9 @@ class RiskOptima:
                             'Reason': 'Below Lower Band'
                         })
                     break
-    
+
         return pd.DataFrame(exits)
-    
+
     @staticmethod
     def calculate_total_returns(df_signals, df_exits):
         """Calculate total returns based on entry and exit points."""
@@ -3312,23 +3312,23 @@ class RiskOptima:
                 'TotalReturn': total_return
             })
         return pd.DataFrame(returns)
-    
+
     @staticmethod
     def plot_exit_strategy(df, df_signals, df_exits, start_date, end_date, symbol_base):
         """Plot the exit strategy with entry and exit points."""
         fig, ax = plt.subplots(figsize=(20, 12))
-    
+
         title=f'[RiskOptima] SPY & VIX Index Vol Divergence Entry/Exit Signals {start_date} to {end_date}'
         ax.set_title(title)
-    
+
         # Plot SPY
         ax.plot(df.index, df['base_Close'], label=f'{symbol_base} Close', color='blue')
         ax.plot(df.index, df['MA30'], label=f'30-day MA ({symbol_base})', color='orange')
-        ax.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)', 
+        ax.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)',
                 color='orange', linestyle='--', alpha=0.6)
         ax.plot(df.index, df['Lower_Band'], label='Lower Band (MA - 2σ)',
                 color='orange', linestyle='--', alpha=0.6)
-    
+
         # Highlight entry signals
         ax.scatter(
             df_signals['SignalDate'],
@@ -3338,14 +3338,14 @@ class RiskOptima:
             s=100,
             label='Entry Signal'
         )
-    
+
         for i, row in df_signals.iterrows():
             ax.text(
                 row['SignalDate'], row['base_Close'] - 20,
                 f"{row['SignalDate'].strftime('%d/%m')}\n{row['base_Close']:.2f}",
                 fontsize=8, color='green', ha='center'
             )
-    
+
         # Highlight exit points
         ax.scatter(
             df_exits['ExitDate'],
@@ -3355,24 +3355,24 @@ class RiskOptima:
             s=100,
             label='Exit Signal'
         )
-    
+
         for i, row in df_exits.iterrows():
             ax.text(
                 row['ExitDate'], row['ExitPrice'] + 10,
                 f"{row['ExitDate'].strftime('%d/%m')}\n{row['ExitPrice']:.2f}",
                 fontsize=8, color='red', ha='center'
             )
-    
+
         plt.text(
                 0.995, -0.15,
                 f"Created by RiskOptima v{RiskOptima.VERSION}",
                 fontsize=12, color='gray', alpha=0.7,
                 transform=ax.transAxes, ha='right'
             )
-    
+
         ax.set_xlabel('Date')
         ax.set_ylabel(f'{symbol_base} Price')
-        
+
         ax.legend(
             loc='upper center',
             bbox_to_anchor=(0.5, -0.08),
@@ -3380,26 +3380,26 @@ class RiskOptima:
             shadow=True,
             ncol=3
         )
-    
+
         ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
         ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
         ax.set_axisbelow(True)
-        
+
         plt.tight_layout()
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         plots_folder = "plots"
-        
+
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-            
+
         plot_path = os.path.join(plots_folder, f"riskoptima_index_vol_divergence_signals_entry_exit_{timestamp}.png")
-        
+
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
-        
+
         plt.show()
-    
+
     @staticmethod
     def run_index_vol_divergence_signals(start_date = "2024-01-01", end_date = "2025-01-14",
                                          symbol_base = "SPY", symbol_vix = "^VIX", ma_window = 30):
@@ -3407,7 +3407,7 @@ class RiskOptima:
         Example usage of the full pipeline in one function call.
         Adjust your 'plots/' directory path as needed.
         """
-    
+
         # 1) Fetch signals
         df_signals, df = RiskOptima.run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window)
         # 2) Calculate exits
@@ -3416,58 +3416,58 @@ class RiskOptima:
         returns = RiskOptima.calculate_total_returns(df_signals, df_exits)
         # 4) Plot and summarize
         RiskOptima.plot_exit_strategy(df, df_signals, df_exits, start_date, end_date, symbol_base)
-    
+
         # Return them if needed for further processing
         return df_signals, df_exits, returns
-    
+
     @staticmethod
     def build_correlation_matrix(asset_table: pd.DataFrame, start_date, end_date):
-    
+
         tickers = sorted(asset_table['Asset'].tolist())
-    
+
         price_data = yf.download(tickers, start=start_date, end=end_date, progress=False)['Close']
-        price_data = price_data.dropna(how='all', axis=1) 
-    
+        price_data = price_data.dropna(how='all', axis=1)
+
         returns = price_data.pct_change().dropna()
-    
+
         corr_matrix = returns.corr()
-    
+
         fig, ax = plt.subplots(figsize=(20, 12))
-        
+
         sns.heatmap(
-            corr_matrix, 
-            annot=True,              
-            fmt=".2f",               
-            cmap='crest',            
-            center=0, 
-            linewidths=0.3, 
+            corr_matrix,
+            annot=True,
+            fmt=".2f",
+            cmap='crest',
+            center=0,
+            linewidths=0.3,
             linecolor='gray',
-            square=True, 
+            square=True,
             cbar_kws={'label': 'Correlation'},
             ax=ax
         )
         plt.title(f"[RiskOptima] Correlation Matrix - {start_date} to {end_date}", fontsize=16)
         plt.xticks(rotation=90)
         plt.yticks(rotation=0)
-        
+
         plt.text(
             0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
             fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
         )
-        
+
         plt.tight_layout()
-        
+
         plots_folder = "plots"
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-            
+
         plot_path = os.path.join(plots_folder, f"riskoptima_correlation_matrix_{timestamp}.png")
-        
+
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
-        
+
         plt.show()
-    
-        return corr_matrix    
+
+        return corr_matrix
