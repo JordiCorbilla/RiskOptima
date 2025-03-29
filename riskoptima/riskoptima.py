@@ -75,7 +75,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.36.0'
+    VERSION = '1.37.0'
 
     @staticmethod
     def get_trading_days():
@@ -3256,37 +3256,37 @@ class RiskOptima:
 
     
     @staticmethod
-    def exit_strategy(df, df_signals, intraday=True):
+    def exit_strategy(df, df_signals, symbol_base='SPY', intraday=True):
         """Identify exit points for each entry based on the exit strategy."""
         exits = []
         for index, signal in df_signals.iterrows():
             entry_date = signal['SignalDate']
-            entry_price = signal['SPY_Close']
+            entry_price = signal['base_Close']
     
             # Find the data after the signal date
             df_after_entry = df.loc[entry_date:]
     
             for i, row in df_after_entry.iterrows():
                 # First exit condition: SPY goes above the 30-day moving average
-                if row['SPY_Close'] > row['MA30']:
+                if row['base_Close'] > row['MA30']:
                     if intraday or (i != entry_date):
                         exits.append({
                             'EntryDate': entry_date,
                             'ExitDate': i,
                             'EntryPrice': entry_price,
-                            'ExitPrice': row['SPY_Close'],
+                            'ExitPrice': row['base_Close'],
                             'Reason': 'Above 30-day MA'
                         })
                     break
     
                 # Second exit condition: SPY goes below the lower Bollinger band
-                if row['SPY_Close'] < row['Lower_Band']:
+                if row['base_Close'] < row['Lower_Band']:
                     if intraday or (i != entry_date):
                         exits.append({
                             'EntryDate': entry_date,
                             'ExitDate': i,
                             'EntryPrice': entry_price,
-                            'ExitPrice': row['SPY_Close'],
+                            'ExitPrice': row['base_Close'],
                             'Reason': 'Below Lower Band'
                         })
                     break
@@ -3314,7 +3314,7 @@ class RiskOptima:
         return pd.DataFrame(returns)
     
     @staticmethod
-    def plot_exit_strategy(df, df_signals, df_exits, start_date, end_date):
+    def plot_exit_strategy(df, df_signals, df_exits, start_date, end_date, symbol_base):
         """Plot the exit strategy with entry and exit points."""
         fig, ax = plt.subplots(figsize=(20, 12))
     
@@ -3322,8 +3322,8 @@ class RiskOptima:
         ax.set_title(title)
     
         # Plot SPY
-        ax.plot(df.index, df['SPY_Close'], label='SPY Close', color='blue')
-        ax.plot(df.index, df['MA30'], label='30-day MA (SPY)', color='orange')
+        ax.plot(df.index, df['base_Close'], label=f'{symbol_base} Close', color='blue')
+        ax.plot(df.index, df['MA30'], label=f'30-day MA ({symbol_base})', color='orange')
         ax.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)', 
                 color='orange', linestyle='--', alpha=0.6)
         ax.plot(df.index, df['Lower_Band'], label='Lower Band (MA - 2σ)',
@@ -3332,7 +3332,7 @@ class RiskOptima:
         # Highlight entry signals
         ax.scatter(
             df_signals['SignalDate'],
-            df_signals['SPY_Close'],
+            df_signals['base_Close'],
             color='green',
             marker='^',
             s=100,
@@ -3341,8 +3341,8 @@ class RiskOptima:
     
         for i, row in df_signals.iterrows():
             ax.text(
-                row['SignalDate'], row['SPY_Close'] - 20,
-                f"{row['SignalDate'].strftime('%d/%m')}\n{row['SPY_Close']:.2f}",
+                row['SignalDate'], row['base_Close'] - 20,
+                f"{row['SignalDate'].strftime('%d/%m')}\n{row['base_Close']:.2f}",
                 fontsize=8, color='green', ha='center'
             )
     
@@ -3371,7 +3371,7 @@ class RiskOptima:
             )
     
         ax.set_xlabel('Date')
-        ax.set_ylabel('SPY Price')
+        ax.set_ylabel(f'{symbol_base} Price')
         
         ax.legend(
             loc='upper center',
@@ -3411,11 +3411,11 @@ class RiskOptima:
         # 1) Fetch signals
         df_signals, df = RiskOptima.run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window)
         # 2) Calculate exits
-        df_exits = RiskOptima.exit_strategy(df, df_signals, intraday=False)
+        df_exits = RiskOptima.exit_strategy(df, df_signals, symbol_base, intraday=False)
         # 3) Calculate returns
         returns = RiskOptima.calculate_total_returns(df_signals, df_exits)
         # 4) Plot and summarize
-        RiskOptima.plot_exit_strategy(df, df_signals, df_exits, start_date, end_date)
+        RiskOptima.plot_exit_strategy(df, df_signals, df_exits, start_date, end_date, symbol_base)
     
         # Return them if needed for further processing
         return df_signals, df_exits, returns
