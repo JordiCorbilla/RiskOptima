@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Date: 16/03/2025
+Date: 29/03/2025
 
 This module (extended) provides various financial functions and tools for analyzing 
 and handling portfolio data learned from EDHEC Business School, computing statistical 
@@ -30,6 +30,7 @@ Main features include:
 - Hull-White stochastic volatility model for asset pricing
 - Heston stochastic volatility model for stochastic variance
 - SABR model for forward price volatility simulation
+- Correlation Matrix
 
 Dependencies: 
 pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
@@ -74,7 +75,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.34.0'
+    VERSION = '1.36.0'
 
     @staticmethod
     def get_trading_days():
@@ -3093,29 +3094,29 @@ class RiskOptima:
         return F, sigma
     
     @staticmethod
-    def run_spy_vix_strategy(start_date, end_date, symbol_spy, symbol_vix, ma_window):
+    def run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window):
         # ------------------------------
         # 1. Fetch Data
         # ------------------------------
-        df_spy = yf.download(symbol_spy, start=start_date, end=end_date, progress=False)
+        df_base = yf.download(symbol_base, start=start_date, end=end_date, progress=False)
         df_vix = yf.download(symbol_vix, start=start_date, end=end_date, progress=False)
     
         # We only need the 'Close' column from each
-        df_spy = df_spy[['Close']]
+        df_base = df_base[['Close']]
         df_vix = df_vix[['Close']]
     
         # Rename columns for clarity
-        df_spy.columns = ['SPY_Close']
+        df_base.columns = ['base_Close']
         df_vix.columns = ['VIX_Close']
     
         # Combine into a single DataFrame on common dates
-        df = pd.merge(df_spy, df_vix, how='inner', left_index=True, right_index=True)
+        df = pd.merge(df_base, df_vix, how='inner', left_index=True, right_index=True)
     
         # ------------------------------
         # 2. Compute MA, std, ±2σ bands
         # ------------------------------
-        df['MA30'] = df['SPY_Close'].rolling(ma_window).mean()
-        df['STD30'] = df['SPY_Close'].rolling(ma_window).std()
+        df['MA30'] = df['base_Close'].rolling(ma_window).mean()
+        df['STD30'] = df['base_Close'].rolling(ma_window).std()
         df['Upper_Band'] = df['MA30'] + 2 * df['STD30']
         df['Lower_Band'] = df['MA30'] - 2 * df['STD30']
     
@@ -3135,7 +3136,7 @@ class RiskOptima:
         # Identify indices where SPY is a local minimum
         min_indices = []
         for i in range(1, len(df) - 1):
-            if is_local_min(df['SPY_Close'], i):
+            if is_local_min(df['base_Close'], i):
                 min_indices.append(i)
     
         # Look for pairs of consecutive local minima to see if the second is a "lower low"
@@ -3144,8 +3145,8 @@ class RiskOptima:
             i2 = min_indices[idx + 1]
     
             # First and second local minima
-            low1 = df['SPY_Close'].iloc[i1]
-            low2 = df['SPY_Close'].iloc[i2]
+            low1 = df['base_Close'].iloc[i1]
+            low2 = df['base_Close'].iloc[i2]
     
             # We want: low2 < low1 (a "second lower low")
             if low2 < low1:
@@ -3155,15 +3156,15 @@ class RiskOptima:
     
                 # Conditions: higher VIX and SPY within ±2σ
                 if (vix2 > vix1) and \
-                   (df['SPY_Close'].iloc[i2] <= df['Upper_Band'].iloc[i2]) and \
-                   (df['SPY_Close'].iloc[i2] >= df['Lower_Band'].iloc[i2]):
+                   (df['base_Close'].iloc[i2] <= df['Upper_Band'].iloc[i2]) and \
+                   (df['base_Close'].iloc[i2] >= df['Lower_Band'].iloc[i2]):
     
                     signal_date = df.index[i2]
-                    close_price = df['SPY_Close'].iloc[i2]
+                    close_price = df['base_Close'].iloc[i2]
     
                     signals.append({
                         'SignalDate': signal_date,
-                        'SPY_Close': close_price,
+                        'base_Close': close_price,
                         'VIX_Close': vix2,
                         'Comment': 'Second lower low + higher VIX + within ±2σ'
                     })
@@ -3175,11 +3176,11 @@ class RiskOptima:
         # ------------------------------
         fig, ax1 = plt.subplots(figsize=(20, 12))
     
-        ax1.set_title('[RiskOptima] SPY & VIX Index Vol Divergence Entry Strategy {start_date} to {end_date}')
+        ax1.set_title(f'[RiskOptima] {symbol_base} & VIX Index Vol Divergence Entry Strategy {start_date} to {end_date}')
     
         # Plot SPY
-        ax1.plot(df.index, df['SPY_Close'], label='SPY Close', color='blue')
-        ax1.plot(df.index, df['MA30'], label='30-day MA (SPY)', color='orange')
+        ax1.plot(df.index, df['base_Close'], label=f'{symbol_base} Close', color='blue')
+        ax1.plot(df.index, df['MA30'], label=f'30-day MA ({symbol_base})', color='orange')
         ax1.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)', 
                  color='orange', linestyle='--', alpha=0.6)
         ax1.plot(df.index, df['Lower_Band'], label='Lower Band (MA - 2σ)',
@@ -3188,7 +3189,7 @@ class RiskOptima:
         # Highlight entry signals on SPY
         ax1.scatter(
             df_signals['SignalDate'],
-            df_signals['SPY_Close'],
+            df_signals['base_Close'],
             color='green',
             marker='^',
             s=100,
@@ -3197,13 +3198,13 @@ class RiskOptima:
     
         for i, row in df_signals.iterrows():
             ax1.text(
-                row['SignalDate'], row['SPY_Close'] - 20,
-                f"{row['SignalDate'].strftime('%d/%m')}\n{row['SPY_Close']:.2f}",
+                row['SignalDate'], row['base_Close'] - 20,
+                f"{row['SignalDate'].strftime('%d/%m')}\n{row['base_Close']:.2f}",
                 fontsize=8, color='green', ha='center'
             )
     
         ax1.set_xlabel('Date')
-        ax1.set_ylabel('SPY Price', color='blue')
+        ax1.set_ylabel(f'{symbol_base} Price', color='blue')
         ax1.tick_params(axis='y', labelcolor='blue')
     
         # Plot VIX on secondary y-axis
@@ -3401,14 +3402,14 @@ class RiskOptima:
     
     @staticmethod
     def run_index_vol_divergence_signals(start_date = "2024-01-01", end_date = "2025-01-14",
-                                         symbol_spy = "SPY", symbol_vix = "^VIX", ma_window = 30):
+                                         symbol_base = "SPY", symbol_vix = "^VIX", ma_window = 30):
         """
         Example usage of the full pipeline in one function call.
         Adjust your 'plots/' directory path as needed.
         """
     
         # 1) Fetch signals
-        df_signals, df = RiskOptima.run_spy_vix_strategy(start_date, end_date, symbol_spy, symbol_vix, ma_window)
+        df_signals, df = RiskOptima.run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window)
         # 2) Calculate exits
         df_exits = RiskOptima.exit_strategy(df, df_signals, intraday=False)
         # 3) Calculate returns
@@ -3418,3 +3419,34 @@ class RiskOptima:
     
         # Return them if needed for further processing
         return df_signals, df_exits, returns
+    
+    @staticmethod
+    def build_correlation_matrix(asset_table: pd.DataFrame, start_date, end_date):
+    
+        tickers = asset_table['Asset'].tolist()
+    
+        price_data = yf.download(tickers, start=start_date, end=end_date, progress=False)['Close']
+        price_data = price_data.dropna(how='all', axis=1) 
+    
+        returns = price_data.pct_change().dropna()
+    
+        corr_matrix = returns.corr()
+    
+        plt.figure(figsize=(14, 12))
+        sns.heatmap(
+            corr_matrix, 
+            annot=False, 
+            cmap='crest', 
+            center=0, 
+            linewidths=0.3, 
+            linecolor='gray',
+            square=True, 
+            cbar_kws={'label': 'Correlation'}
+        )
+        plt.title(f"[RiskOptima] Correlation Matrix - {start_date} to {end_date}", fontsize=16)
+        plt.xticks(rotation=90)
+        plt.yticks(rotation=0)
+        plt.tight_layout()
+        plt.show()
+    
+        return corr_matrix    
