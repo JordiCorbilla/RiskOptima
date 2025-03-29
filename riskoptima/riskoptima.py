@@ -3456,6 +3456,18 @@ class RiskOptima:
         )
         
         plt.tight_layout()
+        
+        plots_folder = "plots"
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+            
+        plot_path = os.path.join(plots_folder, f"riskoptima_correlation_matrix_{timestamp}.png")
+        
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        
         plt.show()
     
         return corr_matrix    
