@@ -75,7 +75,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.37.0'
+    VERSION = '1.38.0'
 
     @staticmethod
     def get_trading_days():
@@ -3423,7 +3423,7 @@ class RiskOptima:
     @staticmethod
     def build_correlation_matrix(asset_table: pd.DataFrame, start_date, end_date):
     
-        tickers = asset_table['Asset'].tolist()
+        tickers = sorted(asset_table['Asset'].tolist())
     
         price_data = yf.download(tickers, start=start_date, end=end_date, progress=False)['Close']
         price_data = price_data.dropna(how='all', axis=1) 
@@ -3432,20 +3432,29 @@ class RiskOptima:
     
         corr_matrix = returns.corr()
     
-        plt.figure(figsize=(14, 12))
+        fig, ax = plt.subplots(figsize=(20, 12))
+        
         sns.heatmap(
             corr_matrix, 
-            annot=False, 
-            cmap='crest', 
+            annot=True,              
+            fmt=".2f",               
+            cmap='crest',            
             center=0, 
             linewidths=0.3, 
             linecolor='gray',
             square=True, 
-            cbar_kws={'label': 'Correlation'}
+            cbar_kws={'label': 'Correlation'},
+            ax=ax
         )
         plt.title(f"[RiskOptima] Correlation Matrix - {start_date} to {end_date}", fontsize=16)
         plt.xticks(rotation=90)
         plt.yticks(rotation=0)
+        
+        plt.text(
+            0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+        )
+        
         plt.tight_layout()
         plt.show()
     
