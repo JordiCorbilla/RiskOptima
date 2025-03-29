@@ -31,6 +31,7 @@ Main features include:
 - Heston stochastic volatility model for stochastic variance
 - SABR model for forward price volatility simulation
 - Correlation Matrix
+- SMA strategy
 
 Dependencies:
 pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
@@ -75,7 +76,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.38.0'
+    VERSION = '1.40.0'
 
     @staticmethod
     def get_trading_days():
@@ -3471,3 +3472,187 @@ class RiskOptima:
         plt.show()
 
         return corr_matrix
+    
+    @staticmethod    
+    def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None
+    ):
+        df = yf.download(ticker, start=start, end=end, progress=False)[['Close']].copy()
+        df['SMA20'] = df['Close'].rolling(20).mean()
+        df['SMA50'] = df['Close'].rolling(50).mean()
+    
+        df['Signal'] = 0
+        df['Signal'][50:] = (
+            (df['SMA20'][50:] > df['SMA50'][50:]) & 
+            (df['SMA20'].shift(1)[50:] <= df['SMA50'].shift(1)[50:])
+        ).astype(int) - (
+            (df['SMA20'][50:] < df['SMA50'][50:]) & 
+            (df['SMA20'].shift(1)[50:] >= df['SMA50'].shift(1)[50:])
+        ).astype(int)
+    
+        trades = []
+        position = None
+        entry_price = None
+        entry_date = None
+    
+        for exit_date, row in df.iterrows():
+            price = row['Close']
+            signal = row['Signal']
+    
+            if position is None and signal == 1:
+                position = 'long'
+                entry_price = price
+                entry_date = exit_date
+    
+            elif position == 'long':
+                pnl = (price - entry_price) / entry_price
+                hit_stop = stop_loss is not None and pnl <= -stop_loss
+                hit_take = take_profit is not None and pnl >= take_profit
+    
+                if signal == -1 or hit_stop or hit_take:
+                    trades.append({
+                        'Ticker': ticker,
+                        'Entry Date': entry_date,
+                        'Exit Date': exit_date,
+                        'Entry Price': entry_price,
+                        'Exit Price': price,
+                        'Return': pnl,
+                        'Exit Reason': (
+                            'Sell Signal' if signal == -1 else
+                            'Stop Loss' if hit_stop else
+                            'Take Profit'
+                        )
+                    })
+                    position = None
+    
+        return pd.DataFrame(trades)
+    
+    @staticmethod 
+    def run_strategy_on_portfolio(asset_table: pd.DataFrame, start: str, end: str,
+                                  stop_loss: float = None, take_profit: float = None):
+        results = []
+    
+        for _, row in asset_table.iterrows():
+            ticker = row['Asset']
+            weight = row['Weight']
+            trades_df = RiskOptima.run_sma_strategy_with_risk(
+                ticker, start, end,
+                stop_loss=stop_loss, take_profit=take_profit
+            )
+            trades_df['Weight'] = weight
+            trades_df['Weighted Return'] = trades_df['Return'] * weight
+            results.append(trades_df)
+    
+        all_trades = pd.concat(results).sort_values(by='Entry Date')
+        return all_trades
+    
+    @staticmethod 
+    def plot_sma_strategy_cumulative_return(trade_log: pd.DataFrame, title="Portfolio Return"):
+        trade_log = trade_log.sort_values('Exit Date').copy()
+        trade_log['Cumulative Return'] = (1 + trade_log['Weighted Return']).cumprod()
+    
+        fig, ax = plt.subplots(figsize=(20, 12))
+        
+        plt.plot(trade_log['Exit Date'], trade_log['Cumulative Return'], marker='o')
+        plt.title(title)
+        plt.xlabel("Date")
+        plt.ylabel("Cumulative Return")
+        plt.grid(alpha=0.3)
+        
+        plt.text(
+            0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+        )
+        
+        plt.tight_layout()
+        
+        plots_folder = "plots"
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+
+        plot_path = os.path.join(plots_folder, f"riskoptima_sma_strategy_cum_ret_{timestamp}.png")
+
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.show()
+        
+    @staticmethod 
+    def plot_sma_strategy_trades(df: pd.DataFrame, ticker: str):
+        fig, ax = plt.subplots(figsize=(20, 12))
+        plt.plot(df.index, df['Close'], label='Close Price', alpha=0.5)
+        plt.plot(df.index, df['SMA20'], label='SMA20', alpha=0.8)
+        plt.plot(df.index, df['SMA50'], label='SMA50', alpha=0.8)
+    
+        plt.scatter(df.index[df['Signal'] == 1], df['Close'][df['Signal'] == 1],
+                    marker='^', color='green', s=100, label='Buy Signal')
+        plt.scatter(df.index[df['Signal'] == -1], df['Close'][df['Signal'] == -1],
+                    marker='v', color='red', s=100, label='Sell Signal')
+    
+        plt.title(f"{ticker} - SMA Strategy with Signals")
+        plt.xlabel("Date")
+        plt.ylabel("Price")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        
+        plt.text(
+            0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+        )
+        
+        plt.tight_layout()
+        
+        plots_folder = "plots"
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+
+        plot_path = os.path.join(plots_folder, f"riskoptima_sma_strategy_{timestamp}.png")
+
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        
+        plt.show()
+        
+    @staticmethod 
+    def run_and_plot_sma_strategy(tickers, start_date, end_date, stop_loss=None, take_profit=None):
+        # Normalize input
+        if isinstance(tickers, str):
+            asset_table = pd.DataFrame([{"Asset": tickers, "Weight": 1.0}])
+        elif isinstance(tickers, list):
+            asset_table = pd.DataFrame([{"Asset": t, "Weight": 1.0 / len(tickers)} for t in tickers])
+        elif isinstance(tickers, pd.DataFrame):
+            asset_table = tickers.copy()
+        else:
+            raise ValueError("Tickers must be a string, list, or DataFrame.")
+    
+        # Run portfolio strategy
+        portfolio_trades = RiskOptima.run_strategy_on_portfolio(
+            asset_table, start=start_date, end=end_date,
+            stop_loss=stop_loss, take_profit=take_profit
+        )
+   
+        # If only one ticker, also show price chart with signals
+        if len(asset_table) == 1:
+            ticker = asset_table.iloc[0]['Asset']
+            df = yf.download(ticker, start=start_date, end=end_date, progress=False)[['Close']]
+            df['SMA20'] = df['Close'].rolling(20).mean()
+            df['SMA50'] = df['Close'].rolling(50).mean()
+            df['Signal'] = 0
+            df.loc[df.index[50]:, 'Signal'] = (
+                (df['SMA20'][50:] > df['SMA50'][50:]) & 
+                (df['SMA20'].shift(1)[50:] <= df['SMA50'].shift(1)[50:])
+            ).astype(int) - (
+                (df['SMA20'][50:] < df['SMA50'][50:]) & 
+                (df['SMA20'].shift(1)[50:] >= df['SMA50'].shift(1)[50:])
+            ).astype(int)
+    
+            RiskOptima.plot_sma_strategy_trades(df, ticker)
+    
+        # Always plot cumulative return
+        RiskOptima.plot_cumulative_return(portfolio_trades, title="SMA Strategy - Cumulative Return")
+    
+        return portfolio_trades
+    
+    
