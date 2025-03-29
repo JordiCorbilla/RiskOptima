@@ -3474,14 +3474,13 @@ class RiskOptima:
         return corr_matrix
     
     @staticmethod    
-    def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None
-    ):
+    def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None):
         df = yf.download(ticker, start=start, end=end, progress=False)[['Close']].copy()
         df['SMA20'] = df['Close'].rolling(20).mean()
         df['SMA50'] = df['Close'].rolling(50).mean()
     
         df['Signal'] = 0
-        df['Signal'][50:] = (
+        df.loc[df.index[50]:, 'Signal'] = (
             (df['SMA20'][50:] > df['SMA50'][50:]) & 
             (df['SMA20'].shift(1)[50:] <= df['SMA50'].shift(1)[50:])
         ).astype(int) - (
