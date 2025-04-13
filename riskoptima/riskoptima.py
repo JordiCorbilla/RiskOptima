@@ -76,7 +76,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.40.0'
+    VERSION = '1.41.0'
 
     @staticmethod
     def get_trading_days():
