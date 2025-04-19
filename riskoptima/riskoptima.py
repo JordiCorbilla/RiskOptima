@@ -77,7 +77,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.42.0'
+    VERSION = '1.43.0'
 
     @staticmethod
     def get_trading_days():
@@ -3476,7 +3476,9 @@ class RiskOptima:
     
     @staticmethod    
     def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None):
+    
         df = yf.download(ticker, start=start, end=end, progress=False)[['Close']].copy()
+        
         df['SMA20'] = df['Close'].rolling(20).mean()
         df['SMA50'] = df['Close'].rolling(50).mean()
     
@@ -3495,8 +3497,8 @@ class RiskOptima:
         entry_date = None
     
         for exit_date, row in df.iterrows():
-            price = row['Close']
-            signal = row['Signal']
+            price = row['Close'].item() if hasattr(row['Close'], 'item') else float(row['Close'])
+            signal = row['Signal'].item() if hasattr(row['Signal'], 'item') else int(row['Signal'])
     
             if position is None and signal == 1:
                 position = 'long'
@@ -3530,7 +3532,7 @@ class RiskOptima:
     def run_strategy_on_portfolio(asset_table: pd.DataFrame, start: str, end: str,
                                   stop_loss: float = None, take_profit: float = None):
         results = []
-    
+        print(asset_table)
         for _, row in asset_table.iterrows():
             ticker = row['Asset']
             weight = row['Weight']
@@ -3568,12 +3570,12 @@ class RiskOptima:
         plots_folder = "plots"
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
+    
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-
+    
         plot_path = os.path.join(plots_folder, f"riskoptima_sma_strategy_cum_ret_{timestamp}.png")
-
+    
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         plt.show()
         
@@ -3605,12 +3607,12 @@ class RiskOptima:
         plots_folder = "plots"
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
+    
         if not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
-
+    
         plot_path = os.path.join(plots_folder, f"riskoptima_sma_strategy_{timestamp}.png")
-
+    
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         
         plt.show()
@@ -3632,7 +3634,7 @@ class RiskOptima:
             asset_table, start=start_date, end=end_date,
             stop_loss=stop_loss, take_profit=take_profit
         )
-   
+    
         # If only one ticker, also show price chart with signals
         if len(asset_table) == 1:
             ticker = asset_table.iloc[0]['Asset']
@@ -3651,12 +3653,12 @@ class RiskOptima:
             RiskOptima.plot_sma_strategy_trades(df, ticker)
     
         # Always plot cumulative return
-        RiskOptima.plot_cumulative_return(portfolio_trades, title="SMA Strategy - Cumulative Return")
+        RiskOptima.plot_sma_strategy_cumulative_return(portfolio_trades, title="SMA Strategy - Cumulative Return")
     
         return portfolio_trades
     
     @staticmethod
-    def iv_screener(symbol='AMZN', lookback_days=30):
+    def implied_volatility_screener(symbol='AMZN', lookback_days=30):
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period=f"{lookback_days}d")
         hv = np.std(np.log(hist['Close'] / hist['Close'].shift(1)).dropna()) * np.sqrt(252)
@@ -3667,7 +3669,7 @@ class RiskOptima:
         for exp in expirations:
             opt = ticker.option_chain(exp)
             calls = opt.calls
-            spot = ticker.history(period="1d")["Close"][0]
+            spot = ticker.history(period="1d")["Close"].iloc[0]
             calls["distance"] = abs(calls["strike"] - spot)
             atm_call = calls.sort_values("distance").iloc[0]
             iv_data.append({"expiration": exp, "iv": atm_call["impliedVolatility"]})
