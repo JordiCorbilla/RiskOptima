@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Date: 29/03/2025
+Date: 19/04/2025
 
 This module (extended) provides various financial functions and tools for analyzing
 and handling portfolio data learned from EDHEC Business School, computing statistical
@@ -32,6 +32,7 @@ Main features include:
 - SABR model for forward price volatility simulation
 - Correlation Matrix
 - SMA strategy
+- Options and Greeks
 
 Dependencies:
 pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
@@ -76,7 +77,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.41.0'
+    VERSION = '1.42.0'
 
     @staticmethod
     def get_trading_days():
@@ -3654,4 +3655,149 @@ class RiskOptima:
     
         return portfolio_trades
     
+    @staticmethod
+    def iv_screener(symbol='AMZN', lookback_days=30):
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=f"{lookback_days}d")
+        hv = np.std(np.log(hist['Close'] / hist['Close'].shift(1)).dropna()) * np.sqrt(252)
     
+        expirations = ticker.options
+        iv_data = []
+    
+        for exp in expirations:
+            opt = ticker.option_chain(exp)
+            calls = opt.calls
+            spot = ticker.history(period="1d")["Close"][0]
+            calls["distance"] = abs(calls["strike"] - spot)
+            atm_call = calls.sort_values("distance").iloc[0]
+            iv_data.append({"expiration": exp, "iv": atm_call["impliedVolatility"]})
+    
+        iv_df = pd.DataFrame(iv_data)
+        iv_df['expiration'] = pd.to_datetime(iv_df['expiration'])
+        iv_df.sort_values('expiration', inplace=True)
+    
+        plt.figure(figsize=(10, 6))
+        plt.plot(iv_df['expiration'], iv_df['iv'] * 100, marker='o', label='ATM IV')
+        plt.axhline(hv * 100, color='red', linestyle='--', label=f'{lookback_days}D HV')
+        plt.title(f'{symbol} Implied Volatility Term Structure')
+        plt.xlabel('Expiration Date')
+        plt.ylabel('Implied Volatility (%)')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+    
+    
+    # === STRADDLE BACKTESTER ===
+    @staticmethod
+    def straddle_backtester(symbol='AMZN', start_date='2022-01-01', window_before=5, window_after=1):
+        ticker = yf.Ticker(symbol)
+        earnings_dates = ticker.earnings_dates
+    
+        if earnings_dates is None or earnings_dates.empty:
+            print("No earnings data available.")
+            return
+    
+        earnings = earnings_dates.reset_index()
+        earnings.columns = ['date', 'eps', 'surprise']
+        earnings['date'] = pd.to_datetime(earnings['date'])
+        price_data = ticker.history(start=start_date)
+    
+        results = []
+        for edate in earnings['date']:
+            entry_date = edate - pd.Timedelta(days=window_before)
+            exit_date = edate + pd.Timedelta(days=window_after)
+    
+            try:
+                entry_price = price_data.loc[entry_date.strftime('%Y-%m-%d')]['Close']
+                exit_price = price_data.loc[exit_date.strftime('%Y-%m-%d')]['Close']
+                move = abs(exit_price - entry_price)
+                straddle_cost = 0.05 * entry_price
+                profit = move - straddle_cost
+                results.append({
+                    'earnings_date': edate,
+                    'entry_price': entry_price,
+                    'exit_price': exit_price,
+                    'abs_move': move,
+                    'straddle_cost': straddle_cost,
+                    'profit': profit
+                })
+            except KeyError:
+                continue
+    
+        df = pd.DataFrame(results)
+        if df.empty:
+            print("No valid trades found.")
+            return
+    
+        print(df[['abs_move', 'straddle_cost', 'profit']].describe())
+        plt.figure(figsize=(10, 6))
+        plt.plot(df['earnings_date'], df['profit'], marker='o', label='P&L from Straddle')
+        plt.axhline(0, color='red', linestyle='--')
+        plt.title(f'{symbol} Straddle Backtest Around Earnings')
+        plt.xlabel('Earnings Date')
+        plt.ylabel('Profit / Loss')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.legend()
+        plt.show()
+    
+    
+    # === GREEKS SIMULATOR ===
+    @staticmethod
+    def black_scholes_greeks(S, K, T, r, sigma, option_type='call'):
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+    
+        if option_type == 'call':
+            delta = norm.cdf(d1)
+            theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(d2)) / 365
+        else:
+            delta = -norm.cdf(-d1)
+            theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)) / 365
+    
+        gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
+        vega = S * norm.pdf(d1) * np.sqrt(T) / 100
+    
+        return delta, gamma, theta, vega
+    
+    
+    @staticmethod
+    def greeks_simulator(S=192.82, T_days=20, r=0.05, sigma=0.35, option_type='call'):
+        T = T_days / 365
+        strikes = np.arange(S - 15, S + 15, 1)
+    
+        greeks_data = {'strike': [], 'delta': [], 'gamma': [], 'theta': [], 'vega': []}
+    
+        for K in strikes:
+            delta, gamma, theta, vega = RiskOptima.black_scholes_greeks(S, K, T, r, sigma, option_type)
+            greeks_data['strike'].append(K)
+            greeks_data['delta'].append(delta)
+            greeks_data['gamma'].append(gamma)
+            greeks_data['theta'].append(theta)
+            greeks_data['vega'].append(vega)
+    
+        plt.figure(figsize=(12, 10))
+    
+        plt.subplot(2, 2, 1)
+        plt.plot(greeks_data['strike'], greeks_data['delta'], label='Delta')
+        plt.title('Delta vs Strike')
+        plt.grid(True)
+    
+        plt.subplot(2, 2, 2)
+        plt.plot(greeks_data['strike'], greeks_data['gamma'], label='Gamma', color='orange')
+        plt.title('Gamma vs Strike')
+        plt.grid(True)
+    
+        plt.subplot(2, 2, 3)
+        plt.plot(greeks_data['strike'], greeks_data['theta'], label='Theta', color='green')
+        plt.title('Theta vs Strike')
+        plt.grid(True)
+    
+        plt.subplot(2, 2, 4)
+        plt.plot(greeks_data['strike'], greeks_data['vega'], label='Vega', color='purple')
+        plt.title('Vega vs Strike')
+        plt.grid(True)
+    
+        plt.tight_layout()
+        plt.show()
