@@ -77,7 +77,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.43.0'
+    VERSION = '1.44.0'
 
     @staticmethod
     def get_trading_days():
@@ -3649,9 +3649,25 @@ class RiskOptima:
                 (df['SMA20'][50:] < df['SMA50'][50:]) & 
                 (df['SMA20'].shift(1)[50:] >= df['SMA50'].shift(1)[50:])
             ).astype(int)
-    
+        
             RiskOptima.plot_sma_strategy_trades(df, ticker)
-    
+        
+        else:
+            for ticker in asset_table['Asset']:
+                df = yf.download(ticker, start=start_date, end=end_date, progress=False)[['Close']]
+                df['SMA20'] = df['Close'].rolling(20).mean()
+                df['SMA50'] = df['Close'].rolling(50).mean()
+                df['Signal'] = 0
+                df.loc[df.index[50]:, 'Signal'] = (
+                    (df['SMA20'][50:] > df['SMA50'][50:]) & 
+                    (df['SMA20'].shift(1)[50:] <= df['SMA50'].shift(1)[50:])
+                ).astype(int) - (
+                    (df['SMA20'][50:] < df['SMA50'][50:]) & 
+                    (df['SMA20'].shift(1)[50:] >= df['SMA50'].shift(1)[50:])
+                ).astype(int)
+            
+                RiskOptima.plot_sma_strategy_trades(df, ticker)
+        
         # Always plot cumulative return
         RiskOptima.plot_sma_strategy_cumulative_return(portfolio_trades, title="SMA Strategy - Cumulative Return")
     
@@ -3701,7 +3717,7 @@ class RiskOptima:
             return
     
         earnings = earnings_dates.reset_index()
-        earnings.columns = ['date', 'eps', 'surprise']
+        earnings.columns = ['date', 'eps_estimate', 'eps_reported', 'surprise']
         earnings['date'] = pd.to_datetime(earnings['date'])
         price_data = ticker.history(start=start_date)
     
