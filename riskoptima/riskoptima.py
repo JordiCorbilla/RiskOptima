@@ -4,7 +4,7 @@
 
 """
 Author: Jordi Corbilla
-Date: 19/04/2025
+Date: 22/04/2025
 
 This module (extended) provides various financial functions and tools for analyzing
 and handling portfolio data learned from EDHEC Business School, computing statistical
@@ -77,7 +77,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.44.0'
+    VERSION = '1.45.0'
 
     @staticmethod
     def get_trading_days():
@@ -3703,6 +3703,18 @@ class RiskOptima:
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
+        plt.text(
+            0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=plt.gca().transAxes, ha='right'
+        )
+        
+        plots_folder = "plots"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+        plot_path = os.path.join(plots_folder, f"riskoptima_iv_screener_{timestamp}.png")
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        
         plt.show()
     
     
@@ -3756,8 +3768,18 @@ class RiskOptima:
         plt.xlabel('Earnings Date')
         plt.ylabel('Profit / Loss')
         plt.grid(True)
-        plt.tight_layout()
-        plt.legend()
+        plt.text(
+            0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=plt.gca().transAxes, ha='right'
+        )
+        
+        plots_folder = "plots"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+        plot_path = os.path.join(plots_folder, f"riskoptima_straddle_backtest_{timestamp}.png")
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.legend()        
         plt.show()
     
     
@@ -3818,4 +3840,19 @@ class RiskOptima:
         plt.grid(True)
     
         plt.tight_layout()
+        plt.suptitle("Option Greeks vs Strike", fontsize=16, y=1.02)
+        plt.subplots_adjust(top=0.92)
+        
+        plt.text(
+            0.995, -0.05, f"Created by RiskOptima v{RiskOptima.VERSION}",
+            fontsize=12, color='gray', alpha=0.7, transform=plt.gcf().transFigure, ha='right'
+        )
+        
+        plots_folder = "plots"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not os.path.exists(plots_folder):
+            os.makedirs(plots_folder)
+        plot_path = os.path.join(plots_folder, f"riskoptima_greeks_simulator_{timestamp}.png")
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        
         plt.show()
