@@ -3441,7 +3441,7 @@ class RiskOptima:
         price_data = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=False)['Close']
         price_data = price_data.dropna(how='all', axis=1)
 
-        returns = price_data.pct_change().dropna()
+        returns = price_data.pct_change(fill_method=None).dropna()
 
         corr_matrix = returns.corr()
 
