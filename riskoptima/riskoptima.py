@@ -107,7 +107,7 @@ class RiskOptima:
         :param end_date: End date for data in 'YYYY-MM-DD' format.
         :return: A pandas DataFrame of adjusted close prices.
         """
-        data = yf.download(assets, start=start_date, end=end_date, progress=False)
+        data = yf.download(assets, start=start_date, end=end_date, progress=False, auto_adjust=False)
         return data['Close']
 
     @staticmethod
@@ -1295,7 +1295,7 @@ class RiskOptima:
         Downloads data for a market index (e.g., SPY), then calculates its
         annualized return, annualized volatility, and Sharpe ratio.
         """
-        market_data = yf.download([market_ticker], start=start_date, end=end_date, progress=False)['Close']
+        market_data = yf.download([market_ticker], start=start_date, end=end_date, progress=False, auto_adjust=False)['Close']
         if isinstance(market_data, pd.DataFrame):
             market_data = market_data[market_ticker]
         market_daily_returns = market_data.pct_change(fill_method=None).dropna()
@@ -1426,7 +1426,7 @@ class RiskOptima:
         :param str end_date: End date for historical data in 'YYYY-MM-DD' format.
         :return: pandas DataFrame containing the adjusted closing prices for the specified tickers.
         """
-        stock_data = yf.download(tickers, start=start_date, end=end_date, progress=False)
+        stock_data = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=False)
         return stock_data
 
     @staticmethod
@@ -2398,10 +2398,11 @@ class RiskOptima:
                 start=start_dt.strftime('%Y-%m-%d'),
                 end=end_dt.strftime('%Y-%m-%d'),
                 interval="1d",
-                progress=False
+                progress=False,
+                auto_adjust=False
             )
         else:
-            data = yf.download(assets, period="1mo", interval="1d", progress=False)
+            data = yf.download(assets, period="1mo", interval="1d", progress=False, auto_adjust=False)
 
         close_prices = data["Close"]
         if len(close_prices) < lookback_days:
@@ -3110,8 +3111,8 @@ class RiskOptima:
         # ------------------------------
         # 1. Fetch Data
         # ------------------------------
-        df_base = yf.download(symbol_base, start=start_date, end=end_date, progress=False)
-        df_vix = yf.download(symbol_vix, start=start_date, end=end_date, progress=False)
+        df_base = yf.download(symbol_base, start=start_date, end=end_date, progress=False, auto_adjust=False)
+        df_vix = yf.download(symbol_vix, start=start_date, end=end_date, progress=False, auto_adjust=False)
 
         # We only need the 'Close' column from each
         df_base = df_base[['Close']]
@@ -3437,7 +3438,7 @@ class RiskOptima:
 
         tickers = sorted(asset_table['Asset'].tolist())
 
-        price_data = yf.download(tickers, start=start_date, end=end_date, progress=False)['Close']
+        price_data = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=False)['Close']
         price_data = price_data.dropna(how='all', axis=1)
 
         returns = price_data.pct_change().dropna()
@@ -3487,7 +3488,7 @@ class RiskOptima:
     @staticmethod    
     def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None):
     
-        df = yf.download(ticker, start=start, end=end, progress=False)[['Close']].copy()
+        df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)[['Close']].copy()
         
         df['SMA20'] = df['Close'].rolling(20).mean()
         df['SMA50'] = df['Close'].rolling(50).mean()
@@ -3648,7 +3649,7 @@ class RiskOptima:
         # If only one ticker, also show price chart with signals
         if len(asset_table) == 1:
             ticker = asset_table.iloc[0]['Asset']
-            df = yf.download(ticker, start=start_date, end=end_date, progress=False)[['Close']]
+            df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)[['Close']]
             df['SMA20'] = df['Close'].rolling(20).mean()
             df['SMA50'] = df['Close'].rolling(50).mean()
             df['Signal'] = 0
@@ -3664,7 +3665,7 @@ class RiskOptima:
         
         else:
             for ticker in asset_table['Asset']:
-                df = yf.download(ticker, start=start_date, end=end_date, progress=False)[['Close']]
+                df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)[['Close']]
                 df['SMA20'] = df['Close'].rolling(20).mean()
                 df['SMA50'] = df['Close'].rolling(50).mean()
                 df['Signal'] = 0
