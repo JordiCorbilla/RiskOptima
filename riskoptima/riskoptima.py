@@ -67,6 +67,12 @@ import squarify
 import matplotlib as mpl
 import matplotlib.ticker as mticker
 import os
+from riskoptima.risk.factor_model import FactorRiskModel
+from riskoptima.optim.constraints import Constraints
+from riskoptima.optim.mean_variance import optimize_max_sharpe, optimize_min_variance
+from riskoptima.optim.costs import SimpleCostModel
+from riskoptima.backtest.engine import run_backtest
+from riskoptima.core.types import BacktestConfig
 
 import warnings
 warnings.filterwarnings(
@@ -3856,3 +3862,65 @@ class RiskOptima:
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         
         plt.show()
+
+    @staticmethod
+    def build_factor_risk_model(asset_returns: pd.DataFrame, factor_returns: pd.DataFrame):
+        """
+        Fits a Fama-French style factor risk model and returns the model.
+        """
+        model = FactorRiskModel(factor_returns=factor_returns)
+        return model.fit(asset_returns)
+
+    @staticmethod
+    def optimize_max_sharpe_with_factors(expected_returns: pd.Series, cov: pd.DataFrame,
+                                         factor_exposures: pd.DataFrame,
+                                         factor_bounds: dict,
+                                         risk_free_rate: float = 0.0):
+        """
+        Max Sharpe optimizer with factor exposure constraints.
+        """
+        constraints = Constraints(factor_bounds=factor_bounds)
+        return optimize_max_sharpe(
+            expected_returns=expected_returns,
+            cov=cov,
+            constraints=constraints,
+            risk_free_rate=risk_free_rate,
+            factor_exposures=factor_exposures
+        )
+
+    @staticmethod
+    def optimize_min_variance_with_factors(cov: pd.DataFrame,
+                                           expected_returns: pd.Series = None,
+                                           target_return: float = None,
+                                           factor_exposures: pd.DataFrame = None,
+                                           factor_bounds: dict = None):
+        """
+        Minimum variance optimizer with optional return target and factor constraints.
+        """
+        constraints = Constraints(factor_bounds=factor_bounds or {})
+        return optimize_min_variance(
+            cov=cov,
+            expected_returns=expected_returns,
+            target_return=target_return,
+            constraints=constraints,
+            factor_exposures=factor_exposures
+        )
+
+    @staticmethod
+    def run_backtest_daily(prices: pd.DataFrame, strategy,
+                           initial_cash: float = 1_000_000.0,
+                           rebalance_rule: str = "D",
+                           spread_bps: float = 2.0,
+                           impact_coeff: float = 0.0,
+                           slippage_bps: float = 0.0,
+                           adv: pd.DataFrame = None):
+        """
+        Runs a daily bar backtest with a simple transaction cost model.
+        """
+        config = BacktestConfig(
+            initial_cash=initial_cash,
+            rebalance_rule=rebalance_rule,
+            slippage_bps=slippage_bps
+        )
+        cost_model = SimpleCostModel(spread_bps=spread_bps, impact_coeff=impact_coeff)
+        return run_backtest(prices=prices, strategy=strategy, config=config, cost_model=cost_model, adv=adv)

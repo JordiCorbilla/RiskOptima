@@ -26,6 +26,40 @@ pip install riskoptima
 ```
 ## Usage
 
+### New modular API (backtest + factor risk + constraints)
+
+```python
+import pandas as pd
+from riskoptima import FactorRiskModel, Constraints, optimize_max_sharpe
+from riskoptima import SMACrossStrategy, run_backtest, BacktestConfig, SimpleCostModel
+
+# prices: DataFrame with Date index and asset columns
+prices = pd.read_csv("prices.csv", index_col=0, parse_dates=True)
+asset_returns = prices.pct_change().dropna()
+
+# factors: Fama-French returns DataFrame (e.g. from RiskOptima.get_fff_returns)
+factors = pd.read_csv("fama_french_factors.csv", index_col=0, parse_dates=True)
+
+factor_model = FactorRiskModel(factor_returns=factors).fit(asset_returns)
+factor_cov = factor_model.covariance_matrix()
+
+constraints = Constraints(factor_bounds={"MKT": (-0.2, 0.8)})
+weights = optimize_max_sharpe(
+    expected_returns=asset_returns.mean() * 252,
+    cov=factor_cov,
+    constraints=constraints,
+    factor_exposures=factor_model.exposures,
+    risk_free_rate=0.02,
+)
+
+strategy = SMACrossStrategy(short_window=20, long_window=50)
+config = BacktestConfig(initial_cash=1_000_000, rebalance_rule="D")
+cost_model = SimpleCostModel(spread_bps=2.0, impact_coeff=0.0)
+equity_curve, weights_history = run_backtest(prices, strategy, config, cost_model)
+```
+
+See `examples/example_factor_backtest.py` for a runnable end-to-end example.
+
 ### Example 1: Setting up your portfolio
 
 Create your portfolio table similar to the below:
