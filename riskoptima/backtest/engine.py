@@ -1,3 +1,11 @@
+###############################################################################
+#                                  engine.py                                   
+###############################################################################
+# Product: RiskOptima
+# Author: Jordi Corbilla
+# Description: RiskOptima module
+###############################################################################
+
 from __future__ import annotations
 
 from typing import Optional, Tuple

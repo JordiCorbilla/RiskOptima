@@ -1,3 +1,11 @@
+###############################################################################
+#                          example_factor_backtest.py                          
+###############################################################################
+# Product: RiskOptima
+# Author: Jordi Corbilla
+# Description: RiskOptima module
+###############################################################################
+
 import numpy as np
 import pandas as pd
 

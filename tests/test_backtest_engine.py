@@ -1,3 +1,11 @@
+###############################################################################
+#                           test_backtest_engine.py                            
+###############################################################################
+# Product: RiskOptima
+# Author: Jordi Corbilla
+# Description: RiskOptima module
+###############################################################################
+
 import unittest
 import numpy as np
 import pandas as pd
