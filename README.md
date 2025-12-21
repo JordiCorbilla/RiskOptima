@@ -10,12 +10,14 @@ https://pypistats.org/packages/riskoptima
 
 ## Key Features
 
-- Portfolio Optimization: Includes mean-variance optimization, efficient frontier calculation, and maximum Sharpe ratio portfolio construction.
-- Risk Management: Compute key financial risk metrics such as Value at Risk (VaR), Conditional Value at Risk (CVaR), volatility, and drawdowns.
-- Backtesting Framework: Simulate historical performance of investment strategies and analyze portfolio dynamics over time.
-- Machine Learning Integration: Future-ready for implementing machine learning models for predictive analytics and advanced portfolio insights.
-- Monte Carlo Simulations: Perform extensive simulations to analyze potential portfolio outcomes. See example here https://github.com/JordiCorbilla/efficient-frontier-monte-carlo-portfolio-optimization
-- Comprehensive Financial Metrics: Calculate returns, Sharpe ratios, covariance matrices, and more.
+- Modular Core: `MarketData`, `Portfolio`, and `BacktestConfig` types for clean workflows.
+- Backtesting Framework: Strategy interfaces, cost/slippage modeling, and performance tracking.
+- Risk Models: Factor risk model with exposures and factor-based covariance estimation.
+- Optimization: Mean-variance, efficient frontier, max Sharpe, and constraint handling (bounds, leverage, turnover, factor limits).
+- Risk Management: VaR, CVaR, volatility, and drawdown analytics.
+- Monte Carlo Simulations: Analyze potential portfolio outcomes. See example here https://github.com/JordiCorbilla/efficient-frontier-monte-carlo-portfolio-optimization
+- Market & Allocation Visuals: Correlation matrices, portfolio area charts, and diagnostics.
+- Quant Models: Black-Litterman, stochastic volatility models, and options/Greeks analytics.
 
 ## Installation
 

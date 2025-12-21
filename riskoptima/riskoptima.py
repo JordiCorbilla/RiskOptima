@@ -15,28 +15,20 @@ and handling portfolio data learned from EDHEC Business School, computing statis
 metrics, and optimizing portfolios based on different criteria.
 
 Main features include:
-- Loading and formatting financial datasets (Fama-French, EDHEC Hedge Fund Index, etc.)
-- Computing portfolio statistics (returns, volatility, Sharpe ratio, etc.)
-- Running backtests on different portfolio strategies
-- Efficient Frontier plotting
-- Value at Risk (VaR) and Conditional Value at Risk (CVaR) computations
-- Portfolio optimization based on different risk metrics
-- Mean Variance Optimization
-- Machine learning strategies (Linear Regression, XGBoost, SVR, etc.)
+- Modular core types for market data, portfolios, and backtest configuration
+- Backtesting engine with strategy interfaces and cost/slippage handling
+- Factor risk model with exposures and factor-based covariance estimation
+- Optimization with constraints (bounds, leverage, turnover, factor limits)
+- Efficient frontier analysis and mean-variance optimization
+- Portfolio statistics (returns, volatility, Sharpe ratio, drawdowns)
+- Risk metrics: VaR and CVaR
+- Monte Carlo portfolio analysis and probability distributions
+- Machine learning strategies (Linear Regression, Random Forest, XGBoost, SVR)
 - Black-Litterman adjusted returns
-- Market correlation and financial ratios
-- Monte Carlo-based portfolio analysis and probability distributions
-- Black-Scholes option pricing model
-- Heston stochastic volatility model for option pricing
-- Merton Jump Diffusion model for option pricing
-- Heatmap visualization of option prices using Monte Carlo simulation
-- Comprehensive bond analytics including duration, convexity, and yield sensitivity
-- Hull-White stochastic volatility model for asset pricing
-- Heston stochastic volatility model for stochastic variance
-- SABR model for forward price volatility simulation
-- Correlation Matrix
-- SMA strategy
-- Options and Greeks
+- Market correlation and portfolio composition charts
+- Fixed income analytics (duration, convexity, yield sensitivity)
+- Options analytics (pricing, implied vol, Greeks, straddles)
+- Stochastic volatility models (Heston, Hull-White, SABR, Merton Jump Diffusion)
 
 Dependencies:
 pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
