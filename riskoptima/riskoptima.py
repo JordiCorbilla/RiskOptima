@@ -1,5 +1,9 @@
 ###############################################################################
-#                                riskoptima.py
+#                                riskoptima.py                                 
+###############################################################################
+# Product: RiskOptima
+# Author: Jordi Corbilla
+# Description: RiskOptima module
 ###############################################################################
 
 """
@@ -11,28 +15,20 @@ and handling portfolio data learned from EDHEC Business School, computing statis
 metrics, and optimizing portfolios based on different criteria.
 
 Main features include:
-- Loading and formatting financial datasets (Fama-French, EDHEC Hedge Fund Index, etc.)
-- Computing portfolio statistics (returns, volatility, Sharpe ratio, etc.)
-- Running backtests on different portfolio strategies
-- Efficient Frontier plotting
-- Value at Risk (VaR) and Conditional Value at Risk (CVaR) computations
-- Portfolio optimization based on different risk metrics
-- Mean Variance Optimization
-- Machine learning strategies (Linear Regression, XGBoost, SVR, etc.)
+- Modular core types for market data, portfolios, and backtest configuration
+- Backtesting engine with strategy interfaces and cost/slippage handling
+- Factor risk model with exposures and factor-based covariance estimation
+- Optimization with constraints (bounds, leverage, turnover, factor limits)
+- Efficient frontier analysis and mean-variance optimization
+- Portfolio statistics (returns, volatility, Sharpe ratio, drawdowns)
+- Risk metrics: VaR and CVaR
+- Monte Carlo portfolio analysis and probability distributions
+- Machine learning strategies (Linear Regression, Random Forest, XGBoost, SVR)
 - Black-Litterman adjusted returns
-- Market correlation and financial ratios
-- Monte Carlo-based portfolio analysis and probability distributions
-- Black-Scholes option pricing model
-- Heston stochastic volatility model for option pricing
-- Merton Jump Diffusion model for option pricing
-- Heatmap visualization of option prices using Monte Carlo simulation
-- Comprehensive bond analytics including duration, convexity, and yield sensitivity
-- Hull-White stochastic volatility model for asset pricing
-- Heston stochastic volatility model for stochastic variance
-- SABR model for forward price volatility simulation
-- Correlation Matrix
-- SMA strategy
-- Options and Greeks
+- Market correlation and portfolio composition charts
+- Fixed income analytics (duration, convexity, yield sensitivity)
+- Options analytics (pricing, implied vol, Greeks, straddles)
+- Stochastic volatility models (Heston, Hull-White, SABR, Merton Jump Diffusion)
 
 Dependencies:
 pandas, numpy, scipy, statsmodels, yfinance, datetime, scikit-learn,
@@ -67,6 +63,12 @@ import squarify
 import matplotlib as mpl
 import matplotlib.ticker as mticker
 import os
+from riskoptima.risk.factor_model import FactorRiskModel
+from riskoptima.optim.constraints import Constraints
+from riskoptima.optim.mean_variance import optimize_max_sharpe, optimize_min_variance
+from riskoptima.optim.costs import SimpleCostModel
+from riskoptima.backtest.engine import run_backtest
+from riskoptima.core.types import BacktestConfig
 
 import warnings
 warnings.filterwarnings(
@@ -77,7 +79,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '1.45.0'
+    VERSION = '2.2.0'
 
     @staticmethod
     def get_trading_days():
@@ -97,7 +99,7 @@ class RiskOptima:
         :param end_date: End date for data in 'YYYY-MM-DD' format.
         :return: A pandas DataFrame of adjusted close prices.
         """
-        data = yf.download(assets, start=start_date, end=end_date, progress=False)
+        data = yf.download(assets, start=start_date, end=end_date, progress=False, auto_adjust=False)
         return data['Close']
 
     @staticmethod
@@ -1285,7 +1287,7 @@ class RiskOptima:
         Downloads data for a market index (e.g., SPY), then calculates its
         annualized return, annualized volatility, and Sharpe ratio.
         """
-        market_data = yf.download([market_ticker], start=start_date, end=end_date, progress=False)['Close']
+        market_data = yf.download([market_ticker], start=start_date, end=end_date, progress=False, auto_adjust=False)['Close']
         if isinstance(market_data, pd.DataFrame):
             market_data = market_data[market_ticker]
         market_daily_returns = market_data.pct_change(fill_method=None).dropna()
@@ -1416,7 +1418,7 @@ class RiskOptima:
         :param str end_date: End date for historical data in 'YYYY-MM-DD' format.
         :return: pandas DataFrame containing the adjusted closing prices for the specified tickers.
         """
-        stock_data = yf.download(tickers, start=start_date, end=end_date, progress=False)
+        stock_data = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=False)
         return stock_data
 
     @staticmethod
@@ -2388,10 +2390,11 @@ class RiskOptima:
                 start=start_dt.strftime('%Y-%m-%d'),
                 end=end_dt.strftime('%Y-%m-%d'),
                 interval="1d",
-                progress=False
+                progress=False,
+                auto_adjust=False
             )
         else:
-            data = yf.download(assets, period="1mo", interval="1d", progress=False)
+            data = yf.download(assets, period="1mo", interval="1d", progress=False, auto_adjust=False)
 
         close_prices = data["Close"]
         if len(close_prices) < lookback_days:
@@ -3100,8 +3103,8 @@ class RiskOptima:
         # ------------------------------
         # 1. Fetch Data
         # ------------------------------
-        df_base = yf.download(symbol_base, start=start_date, end=end_date, progress=False)
-        df_vix = yf.download(symbol_vix, start=start_date, end=end_date, progress=False)
+        df_base = yf.download(symbol_base, start=start_date, end=end_date, progress=False, auto_adjust=False)
+        df_vix = yf.download(symbol_vix, start=start_date, end=end_date, progress=False, auto_adjust=False)
 
         # We only need the 'Close' column from each
         df_base = df_base[['Close']]
@@ -3427,10 +3430,10 @@ class RiskOptima:
 
         tickers = sorted(asset_table['Asset'].tolist())
 
-        price_data = yf.download(tickers, start=start_date, end=end_date, progress=False)['Close']
+        price_data = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=False)['Close']
         price_data = price_data.dropna(how='all', axis=1)
 
-        returns = price_data.pct_change().dropna()
+        returns = price_data.pct_change(fill_method=None).dropna()
 
         corr_matrix = returns.corr()
 
@@ -3477,7 +3480,7 @@ class RiskOptima:
     @staticmethod    
     def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None):
     
-        df = yf.download(ticker, start=start, end=end, progress=False)[['Close']].copy()
+        df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)[['Close']].copy()
         
         df['SMA20'] = df['Close'].rolling(20).mean()
         df['SMA50'] = df['Close'].rolling(50).mean()
@@ -3638,7 +3641,7 @@ class RiskOptima:
         # If only one ticker, also show price chart with signals
         if len(asset_table) == 1:
             ticker = asset_table.iloc[0]['Asset']
-            df = yf.download(ticker, start=start_date, end=end_date, progress=False)[['Close']]
+            df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)[['Close']]
             df['SMA20'] = df['Close'].rolling(20).mean()
             df['SMA50'] = df['Close'].rolling(50).mean()
             df['Signal'] = 0
@@ -3654,7 +3657,7 @@ class RiskOptima:
         
         else:
             for ticker in asset_table['Asset']:
-                df = yf.download(ticker, start=start_date, end=end_date, progress=False)[['Close']]
+                df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)[['Close']]
                 df['SMA20'] = df['Close'].rolling(20).mean()
                 df['SMA50'] = df['Close'].rolling(50).mean()
                 df['Signal'] = 0
@@ -3729,8 +3732,15 @@ class RiskOptima:
             return
     
         earnings = earnings_dates.reset_index()
-        earnings.columns = ['date', 'eps_estimate', 'eps_reported', 'surprise']
-        earnings['date'] = pd.to_datetime(earnings['date'])
+        date_col = None
+        for candidate in ("Earnings Date", "Date", "date", "index"):
+            if candidate in earnings.columns:
+                date_col = candidate
+                break
+        if date_col is None:
+            date_col = earnings.columns[0]
+        earnings = earnings.rename(columns={date_col: "date"})
+        earnings["date"] = pd.to_datetime(earnings["date"])
         price_data = ticker.history(start=start_date)
     
         results = []
@@ -3856,3 +3866,65 @@ class RiskOptima:
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         
         plt.show()
+
+    @staticmethod
+    def build_factor_risk_model(asset_returns: pd.DataFrame, factor_returns: pd.DataFrame):
+        """
+        Fits a Fama-French style factor risk model and returns the model.
+        """
+        model = FactorRiskModel(factor_returns=factor_returns)
+        return model.fit(asset_returns)
+
+    @staticmethod
+    def optimize_max_sharpe_with_factors(expected_returns: pd.Series, cov: pd.DataFrame,
+                                         factor_exposures: pd.DataFrame,
+                                         factor_bounds: dict,
+                                         risk_free_rate: float = 0.0):
+        """
+        Max Sharpe optimizer with factor exposure constraints.
+        """
+        constraints = Constraints(factor_bounds=factor_bounds)
+        return optimize_max_sharpe(
+            expected_returns=expected_returns,
+            cov=cov,
+            constraints=constraints,
+            risk_free_rate=risk_free_rate,
+            factor_exposures=factor_exposures
+        )
+
+    @staticmethod
+    def optimize_min_variance_with_factors(cov: pd.DataFrame,
+                                           expected_returns: pd.Series = None,
+                                           target_return: float = None,
+                                           factor_exposures: pd.DataFrame = None,
+                                           factor_bounds: dict = None):
+        """
+        Minimum variance optimizer with optional return target and factor constraints.
+        """
+        constraints = Constraints(factor_bounds=factor_bounds or {})
+        return optimize_min_variance(
+            cov=cov,
+            expected_returns=expected_returns,
+            target_return=target_return,
+            constraints=constraints,
+            factor_exposures=factor_exposures
+        )
+
+    @staticmethod
+    def run_backtest_daily(prices: pd.DataFrame, strategy,
+                           initial_cash: float = 1_000_000.0,
+                           rebalance_rule: str = "D",
+                           spread_bps: float = 2.0,
+                           impact_coeff: float = 0.0,
+                           slippage_bps: float = 0.0,
+                           adv: pd.DataFrame = None):
+        """
+        Runs a daily bar backtest with a simple transaction cost model.
+        """
+        config = BacktestConfig(
+            initial_cash=initial_cash,
+            rebalance_rule=rebalance_rule,
+            slippage_bps=slippage_bps
+        )
+        cost_model = SimpleCostModel(spread_bps=spread_bps, impact_coeff=impact_coeff)
+        return run_backtest(prices=prices, strategy=strategy, config=config, cost_model=cost_model, adv=adv)

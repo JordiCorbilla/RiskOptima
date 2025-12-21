@@ -10,12 +10,14 @@ https://pypistats.org/packages/riskoptima
 
 ## Key Features
 
-- Portfolio Optimization: Includes mean-variance optimization, efficient frontier calculation, and maximum Sharpe ratio portfolio construction.
-- Risk Management: Compute key financial risk metrics such as Value at Risk (VaR), Conditional Value at Risk (CVaR), volatility, and drawdowns.
-- Backtesting Framework: Simulate historical performance of investment strategies and analyze portfolio dynamics over time.
-- Machine Learning Integration: Future-ready for implementing machine learning models for predictive analytics and advanced portfolio insights.
-- Monte Carlo Simulations: Perform extensive simulations to analyze potential portfolio outcomes. See example here https://github.com/JordiCorbilla/efficient-frontier-monte-carlo-portfolio-optimization
-- Comprehensive Financial Metrics: Calculate returns, Sharpe ratios, covariance matrices, and more.
+- Modular Core: `MarketData`, `Portfolio`, and `BacktestConfig` types for clean workflows.
+- Backtesting Framework: Strategy interfaces, cost/slippage modeling, and performance tracking.
+- Risk Models: Factor risk model with exposures and factor-based covariance estimation.
+- Optimization: Mean-variance, efficient frontier, max Sharpe, and constraint handling (bounds, leverage, turnover, factor limits).
+- Risk Management: VaR, CVaR, volatility, and drawdown analytics.
+- Monte Carlo Simulations: Analyze potential portfolio outcomes. See example here https://github.com/JordiCorbilla/efficient-frontier-monte-carlo-portfolio-optimization
+- Market & Allocation Visuals: Correlation matrices, portfolio area charts, and diagnostics.
+- Quant Models: Black-Litterman, stochastic volatility models, and options/Greeks analytics.
 
 ## Installation
 
@@ -25,6 +27,40 @@ See the project here: https://pypi.org/project/riskoptima/
 pip install riskoptima
 ```
 ## Usage
+
+### New modular API (backtest + factor risk + constraints)
+
+```python
+import pandas as pd
+from riskoptima import FactorRiskModel, Constraints, optimize_max_sharpe
+from riskoptima import SMACrossStrategy, run_backtest, BacktestConfig, SimpleCostModel
+
+# prices: DataFrame with Date index and asset columns
+prices = pd.read_csv("prices.csv", index_col=0, parse_dates=True)
+asset_returns = prices.pct_change().dropna()
+
+# factors: Fama-French returns DataFrame (e.g. from RiskOptima.get_fff_returns)
+factors = pd.read_csv("fama_french_factors.csv", index_col=0, parse_dates=True)
+
+factor_model = FactorRiskModel(factor_returns=factors).fit(asset_returns)
+factor_cov = factor_model.covariance_matrix()
+
+constraints = Constraints(factor_bounds={"MKT": (-0.2, 0.8)})
+weights = optimize_max_sharpe(
+    expected_returns=asset_returns.mean() * 252,
+    cov=factor_cov,
+    constraints=constraints,
+    factor_exposures=factor_model.exposures,
+    risk_free_rate=0.02,
+)
+
+strategy = SMACrossStrategy(short_window=20, long_window=50)
+config = BacktestConfig(initial_cash=1_000_000, rebalance_rule="D")
+cost_model = SimpleCostModel(spread_bps=2.0, impact_coeff=0.0)
+equity_curve, weights_history = run_backtest(prices, strategy, config, cost_model)
+```
+
+See `examples/example_factor_backtest.py` for a runnable end-to-end example.
 
 ### Example 1: Setting up your portfolio
 

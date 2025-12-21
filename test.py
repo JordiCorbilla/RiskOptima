@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+###############################################################################
+#                                   test.py                                    
+###############################################################################
+# Product: RiskOptima
+# Author: Jordi Corbilla
+# Description: RiskOptima module
+###############################################################################
+
 """
 Created on Sat Mar  1 20:10:17 2025
 
@@ -12,7 +20,7 @@ import matplotlib.pyplot as plt
 ticker_symbol = "AAPL"
 
 # Download historical data for the past 1 year
-data = yf.download(ticker_symbol, period="1y")
+data = yf.download(ticker_symbol, period="1y", auto_adjust=False)
 
 # Display the first few rows of the data
 print(data.head())
