@@ -12,7 +12,7 @@ Created on Thu May  8 17:53:30 2025
 
 @author: jordi
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Optional
 import datetime
