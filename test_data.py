@@ -43,8 +43,6 @@ def process_trades(data: TradeList):
     return {"processed_trades": result}
 
 
-import requests
-
 response = requests.get("https://api.exchangerate.host/latest?base=GBP")
 data = response.json()
 print(data)
