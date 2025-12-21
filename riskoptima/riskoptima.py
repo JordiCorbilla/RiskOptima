@@ -3740,8 +3740,15 @@ class RiskOptima:
             return
     
         earnings = earnings_dates.reset_index()
-        earnings.columns = ['date', 'eps_estimate', 'eps_reported', 'surprise']
-        earnings['date'] = pd.to_datetime(earnings['date'])
+        date_col = None
+        for candidate in ("Earnings Date", "Date", "date", "index"):
+            if candidate in earnings.columns:
+                date_col = candidate
+                break
+        if date_col is None:
+            date_col = earnings.columns[0]
+        earnings = earnings.rename(columns={date_col: "date"})
+        earnings["date"] = pd.to_datetime(earnings["date"])
         price_data = ticker.history(start=start_date)
     
         results = []
