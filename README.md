@@ -18,6 +18,7 @@ https://pypistats.org/packages/riskoptima
 - Monte Carlo Simulations: Analyze potential portfolio outcomes. See example here https://github.com/JordiCorbilla/efficient-frontier-monte-carlo-portfolio-optimization
 - Market & Allocation Visuals: Correlation matrices, portfolio area charts, and diagnostics.
 - Quant Models: Black-Litterman, stochastic volatility models, and options/Greeks analytics.
+- Portfolio Projects: algorithmic trading/backtesting, portfolio optimization, market risk dashboard, option pricing engine, and credit risk model workflows.
 
 ## Installation
 
@@ -61,6 +62,89 @@ equity_curve, weights_history = run_backtest(prices, strategy, config, cost_mode
 ```
 
 See `examples/example_factor_backtest.py` for a runnable end-to-end example.
+
+### Credit Risk Model
+
+RiskOptima includes a production-ready credit risk layer for PD/LGD/EAD portfolios, expected loss, unexpected loss, rating migration, Merton structural default probability, and Credit VaR/CVaR Monte Carlo.
+
+```python
+import pandas as pd
+from riskoptima.credit import (
+    expected_loss,
+    portfolio_expected_loss,
+    simulate_credit_losses,
+    credit_var,
+    credit_cvar,
+    merton_pd,
+)
+
+portfolio = pd.DataFrame({
+    "obligor": ["A", "B", "C"],
+    "PD": [0.01, 0.025, 0.04],
+    "LGD": [0.40, 0.45, 0.55],
+    "EAD": [1_000_000, 750_000, 500_000],
+})
+
+print(expected_loss(0.02, 0.45, 1_000_000))
+print(portfolio_expected_loss(portfolio))
+
+losses = simulate_credit_losses(portfolio, n_sims=20_000, random_state=42)
+print(credit_var(losses, confidence=0.99))
+print(credit_cvar(losses, confidence=0.99))
+print(merton_pd(asset_value=150, debt_face_value=100, asset_vol=0.25, risk_free_rate=0.03, maturity=1.0))
+```
+
+See `08-credit_risk_model_demo.ipynb` for an end-to-end notebook.
+
+### Market Risk Dashboard
+
+RiskOptima can build a dashboard-ready market risk report with annualized return, volatility, Sharpe, Sortino, drawdown, historical VaR, Gaussian VaR, CVaR/expected shortfall, beta, tracking error, information ratio, rolling volatility, and rolling drawdown.
+
+Screenshot placeholder: `plots/market_risk_dashboard.png`
+
+```python
+import pandas as pd
+from riskoptima.reporting import build_market_risk_report
+
+returns = pd.DataFrame({
+    "AssetA": [0.01, -0.005, 0.004, 0.002],
+    "AssetB": [0.002, 0.003, -0.006, 0.005],
+})
+weights = pd.Series({"AssetA": 0.6, "AssetB": 0.4})
+
+report = build_market_risk_report(returns, weights=weights, confidence_levels=(0.95, 0.99))
+print(report.metrics["annualized_volatility"])
+print(report.metrics["historical_var"][0.99])
+```
+
+Run `examples/example_market_risk_dashboard.py` to generate a multi-panel dashboard.
+
+### Option Pricing Engine
+
+The clean options API covers Black-Scholes call/put pricing, Greeks, implied volatility, binomial trees, and Monte Carlo European option pricing while preserving the legacy `RiskOptima` class methods.
+
+```python
+import pandas as pd
+from riskoptima.options import (
+    black_scholes_price,
+    black_scholes_greeks,
+    implied_volatility,
+    monte_carlo_european_option,
+)
+
+S, K, T, r, sigma = 100, 100, 1.0, 0.05, 0.20
+call = black_scholes_price(S, K, T, r, sigma, option_type="call")
+put = black_scholes_price(S, K, T, r, sigma, option_type="put")
+greeks = pd.Series(black_scholes_greeks(S, K, T, r, sigma, option_type="call"))
+iv = implied_volatility(call, S, K, T, r, option_type="call")
+mc = monte_carlo_european_option(S, K, T, r, sigma, option_type="call", random_state=42)
+
+print(call, put)
+print(greeks)
+print(iv, mc)
+```
+
+Run `examples/example_option_pricing_engine.py` for a full pricing comparison.
 
 ### Example 1: Setting up your portfolio
 
