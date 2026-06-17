@@ -1,0 +1,7 @@
+site_name: RiskOptima
+site_description: Quant portfolio risk, optimization, options, and credit risk toolkit.
+repo_url: https://github.com/JordiCorbilla/RiskOptima
+nav:
+  - Home: index.md
+  - Quant Project Map: quant_project_map.md
+

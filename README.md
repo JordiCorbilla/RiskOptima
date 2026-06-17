@@ -1,5 +1,10 @@
 # RiskOptima
 
+[![PyPI](https://img.shields.io/pypi/v/riskoptima.svg)](https://pypi.org/project/riskoptima/)
+[![Python](https://img.shields.io/pypi/pyversions/riskoptima.svg)](https://pypi.org/project/riskoptima/)
+[![CI](https://github.com/JordiCorbilla/RiskOptima/actions/workflows/ci.yml/badge.svg)](https://github.com/JordiCorbilla/RiskOptima/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/JordiCorbilla/RiskOptima.svg)](LICENSE)
+
 ![image](https://github.com/user-attachments/assets/b9bc3bd0-d8fa-4f01-97e6-44bf4b886bcb)
 
 
@@ -19,6 +24,18 @@ https://pypistats.org/packages/riskoptima
 - Market & Allocation Visuals: Correlation matrices, portfolio area charts, and diagnostics.
 - Quant Models: Black-Litterman, stochastic volatility models, and options/Greeks analytics.
 - Portfolio Projects: algorithmic trading/backtesting, portfolio optimization, market risk dashboard, option pricing engine, and credit risk model workflows.
+
+## Quant Portfolio Project Map
+
+| Project | Notebook / Example | Package API | Screenshot |
+|---|---|---|---|
+| Algorithmic Trading Backtester | `05-portfolio_sma_strategy.ipynb` | `riskoptima.backtest` | ![Algorithmic backtesting](docs/assets/algorithmic_backtesting.png) |
+| Portfolio Optimization | `02-portfolio_optimization_riskoptima.ipynb` | `riskoptima.optim` | ![Portfolio optimization](docs/assets/portfolio_optimization.png) |
+| Market Risk Dashboard | `examples/example_market_risk_dashboard.py` | `riskoptima.reporting` | ![Market risk dashboard](docs/assets/market_risk_dashboard.png) |
+| Option Pricing Engine | `examples/example_option_pricing_engine.py` | `riskoptima.options` | ![Option pricing engine](docs/assets/option_pricing_engine.png) |
+| Credit Risk Model | `08-credit_risk_model_demo.ipynb` | `riskoptima.credit` | ![Credit risk model](docs/assets/credit_risk_model.png) |
+
+See `docs/quant_project_map.md` for a recruiter/interviewer-friendly walkthrough of the five projects.
 
 ## Installation
 
@@ -62,6 +79,15 @@ equity_curve, weights_history = run_backtest(prices, strategy, config, cost_mode
 ```
 
 See `examples/example_factor_backtest.py` for a runnable end-to-end example.
+
+### Offline sample datasets
+
+RiskOptima includes small synthetic datasets for deterministic examples:
+
+- `data/synthetic_market_returns.csv`
+- `data/synthetic_credit_portfolio.csv`
+
+These are intentionally small and have no external data dependency.
 
 ### Credit Risk Model
 
@@ -118,6 +144,13 @@ print(report.metrics["historical_var"][0.99])
 ```
 
 Run `examples/example_market_risk_dashboard.py` to generate a multi-panel dashboard.
+
+Optional Streamlit dashboard:
+
+```bash
+pip install streamlit
+streamlit run examples/streamlit_market_risk_dashboard.py
+```
 
 ### Option Pricing Engine
 
