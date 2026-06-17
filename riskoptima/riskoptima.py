@@ -3479,6 +3479,15 @@ class RiskOptima:
     
     @staticmethod    
     def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None):
+        trade_columns = [
+            'Ticker',
+            'Entry Date',
+            'Exit Date',
+            'Entry Price',
+            'Exit Price',
+            'Return',
+            'Exit Reason',
+        ]
     
         df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)[['Close']].copy()
         
@@ -3529,7 +3538,7 @@ class RiskOptima:
                     })
                     position = None
     
-        return pd.DataFrame(trades)
+        return pd.DataFrame(trades, columns=trade_columns)
     
     @staticmethod 
     def run_strategy_on_portfolio(asset_table: pd.DataFrame, start: str, end: str,
@@ -3544,14 +3553,37 @@ class RiskOptima:
                 stop_loss=stop_loss, take_profit=take_profit
             )
             trades_df['Weight'] = weight
-            trades_df['Weighted Return'] = trades_df['Return'] * weight
+            trades_df['Weighted Return'] = trades_df['Return'] * weight if 'Return' in trades_df else pd.Series(dtype=float)
             results.append(trades_df)
     
-        all_trades = pd.concat(results).sort_values(by='Entry Date')
+        if not results:
+            return pd.DataFrame(columns=[
+                'Ticker', 'Entry Date', 'Exit Date', 'Entry Price', 'Exit Price',
+                'Return', 'Exit Reason', 'Weight', 'Weighted Return'
+            ])
+
+        all_trades = pd.concat(results, ignore_index=True)
+        if all_trades.empty:
+            return all_trades
+        all_trades = all_trades.sort_values(by='Entry Date')
         return all_trades
     
     @staticmethod 
     def plot_sma_strategy_cumulative_return(trade_log: pd.DataFrame, title="Portfolio Return"):
+        if trade_log.empty:
+            fig, ax = plt.subplots(figsize=(20, 12))
+            plt.title(title)
+            plt.xlabel("Date")
+            plt.ylabel("Cumulative Return")
+            plt.grid(alpha=0.3)
+            plt.text(
+                0.995, -0.20, f"Created by RiskOptima v{RiskOptima.VERSION}",
+                fontsize=12, color='gray', alpha=0.7, transform=ax.transAxes, ha='right'
+            )
+            plt.tight_layout()
+            plt.show()
+            return
+
         trade_log = trade_log.sort_values('Exit Date').copy()
         trade_log['Cumulative Return'] = (1 + trade_log['Weighted Return']).cumprod()
     
