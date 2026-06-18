@@ -15,6 +15,28 @@ from scipy.stats import norm
 from riskoptima.core import RiskReport
 
 
+def _validated_weights(weights, columns) -> pd.Series:
+    if weights is None:
+        return pd.Series(np.repeat(1.0 / len(columns), len(columns)), index=columns, dtype=float)
+
+    if isinstance(weights, pd.Series):
+        missing = [col for col in columns if col not in weights.index]
+        if missing:
+            raise ValueError(f"weights are missing assets: {missing}")
+        w = weights.reindex(columns).astype(float)
+    else:
+        values = np.asarray(weights, dtype=float)
+        if values.ndim != 1 or len(values) != len(columns):
+            raise ValueError("weights must be a 1D array-like with one value per return column")
+        w = pd.Series(values, index=columns, dtype=float)
+
+    if not np.isfinite(w).all():
+        raise ValueError("weights must be finite")
+    if np.isclose(w.sum(), 0.0):
+        raise ValueError("weights must not sum to zero")
+    return w / w.sum()
+
+
 def _portfolio_returns(returns, weights=None) -> pd.Series:
     data = pd.DataFrame(returns).copy() if not isinstance(returns, pd.Series) else returns.to_frame("portfolio")
     data = data.apply(pd.to_numeric, errors="coerce").dropna(how="all")
@@ -23,14 +45,9 @@ def _portfolio_returns(returns, weights=None) -> pd.Series:
         return data.iloc[:, 0].dropna().rename("portfolio")
 
     clean = data.dropna(how="any")
-    if weights is None:
-        w = np.repeat(1.0 / clean.shape[1], clean.shape[1])
-    else:
-        w = pd.Series(weights, index=clean.columns if len(weights) == clean.shape[1] else None, dtype=float)
-        if list(w.index) != list(clean.columns):
-            w = pd.Series(np.asarray(weights, dtype=float), index=clean.columns)
-        if not np.isclose(w.sum(), 1.0):
-            w = w / w.sum()
+    if clean.empty:
+        raise ValueError("returns must contain at least one complete finite row")
+    w = _validated_weights(weights, clean.columns)
     return clean.dot(w).rename("portfolio")
 
 

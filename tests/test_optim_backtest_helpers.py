@@ -13,7 +13,7 @@ import pandas as pd
 
 from riskoptima.backtest import SMACrossStrategy
 from riskoptima.optim.constraints import Constraints, enforce_turnover, factor_constraint_func
-from riskoptima.optim import optimize_min_variance
+from riskoptima.optim import optimize_max_sharpe, optimize_min_variance
 
 
 class TestOptimBacktestHelpers(unittest.TestCase):
@@ -35,6 +35,17 @@ class TestOptimBacktestHelpers(unittest.TestCase):
         weights = optimize_min_variance(cov, constraints=Constraints(weight_bounds=(0.0, 0.8)))
         self.assertAlmostEqual(float(weights.sum()), 1.0, places=6)
         self.assertLessEqual(float(weights.max()), 0.8 + 1e-6)
+
+    def test_optimizers_raise_on_infeasible_constraints(self):
+        assets = ["A", "B"]
+        expected_returns = pd.Series([0.08, 0.06], index=assets)
+        cov = pd.DataFrame(np.eye(2) * 0.04, index=assets, columns=assets)
+        infeasible = Constraints(weight_bounds=(0.0, 0.1))
+
+        with self.assertRaises(ValueError):
+            optimize_max_sharpe(expected_returns, cov, constraints=infeasible)
+        with self.assertRaises(ValueError):
+            optimize_min_variance(cov, constraints=infeasible)
 
     def test_sma_strategy_waits_for_history(self):
         dates = pd.date_range("2024-01-01", periods=5, freq="B")

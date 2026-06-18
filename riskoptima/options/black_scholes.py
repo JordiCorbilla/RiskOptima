@@ -24,10 +24,16 @@ def black_scholes_price(S, K, T, r, sigma, option_type="call", q=0.0):
     Prices a European option using the Black-Scholes-Merton formula.
     """
     option_type = _option_type(option_type)
-    if T <= 0:
+    if S <= 0 or K <= 0:
+        raise ValueError("S and K must be positive")
+    if T < 0:
+        raise ValueError("T must be non-negative")
+    if sigma < 0:
+        raise ValueError("sigma must be non-negative")
+    if T == 0:
         intrinsic = max(S - K, 0.0) if option_type == "call" else max(K - S, 0.0)
         return float(intrinsic)
-    if sigma <= 0:
+    if sigma == 0:
         forward_intrinsic = (
             max(S * np.exp(-q * T) - K * np.exp(-r * T), 0.0)
             if option_type == "call"

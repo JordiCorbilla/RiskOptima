@@ -18,8 +18,25 @@ def binomial_tree_price(S, K, T, r, sigma, steps=100, option_type="call", q=0.0,
     option_type = option_type.lower()
     if option_type not in {"call", "put"}:
         raise ValueError("option_type must be 'call' or 'put'")
+    if S <= 0 or K <= 0:
+        raise ValueError("S and K must be positive")
+    if T < 0:
+        raise ValueError("T must be non-negative")
+    if sigma < 0:
+        raise ValueError("sigma must be non-negative")
     if steps <= 0:
         raise ValueError("steps must be positive")
+    if T == 0:
+        intrinsic = max(S - K, 0.0) if option_type == "call" else max(K - S, 0.0)
+        return float(intrinsic)
+    if sigma == 0:
+        discounted_strike = K * np.exp(-r * T)
+        deterministic = (
+            max(S * np.exp(-q * T) - discounted_strike, 0.0)
+            if option_type == "call"
+            else max(discounted_strike - S * np.exp(-q * T), 0.0)
+        )
+        return float(deterministic)
 
     dt = T / steps
     u = np.exp(sigma * np.sqrt(dt))

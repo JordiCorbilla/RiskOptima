@@ -46,6 +46,21 @@ class TestOptionsEngine(unittest.TestCase):
         self.assertAlmostEqual(tree, bs, places=2)
         self.assertAlmostEqual(mc, bs, delta=0.15)
 
+    def test_option_pricers_validate_inputs_and_handle_expiry(self):
+        self.assertEqual(black_scholes_price(105, 100, 0, 0.05, 0.2, option_type="call"), 5.0)
+        self.assertEqual(binomial_tree_price(95, 100, 0, 0.05, 0.2, option_type="put"), 5.0)
+        self.assertGreater(black_scholes_price(105, 100, 1, 0.05, 0.0, option_type="call"), 0.0)
+        self.assertGreater(binomial_tree_price(105, 100, 1, 0.05, 0.0, option_type="call"), 0.0)
+
+        with self.assertRaises(ValueError):
+            black_scholes_price(0, 100, 1, 0.05, 0.2)
+        with self.assertRaises(ValueError):
+            black_scholes_price(100, 100, -1, 0.05, 0.2)
+        with self.assertRaises(ValueError):
+            binomial_tree_price(100, -100, 1, 0.05, 0.2)
+        with self.assertRaises(ValueError):
+            binomial_tree_price(100, 100, 1, 0.05, -0.2)
+
 
 if __name__ == "__main__":
     unittest.main()

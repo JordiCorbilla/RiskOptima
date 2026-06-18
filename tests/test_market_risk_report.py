@@ -43,6 +43,23 @@ class TestMarketRiskReport(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_market_risk_report(pd.Series([np.nan, np.nan]))
 
+    def test_invalid_weights_raise_clear_errors(self):
+        returns = pd.DataFrame(
+            {
+                "A": [0.01, 0.02, -0.01],
+                "B": [0.00, 0.01, 0.02],
+            }
+        )
+
+        with self.assertRaises(ValueError):
+            build_market_risk_report(returns, weights=[0.0, 0.0])
+        with self.assertRaises(ValueError):
+            build_market_risk_report(returns, weights=[1.0])
+        with self.assertRaises(ValueError):
+            build_market_risk_report(returns, weights=pd.Series({"A": 1.0}))
+        with self.assertRaises(ValueError):
+            build_market_risk_report(returns, weights=[1.0, np.nan])
+
 
 if __name__ == "__main__":
     unittest.main()

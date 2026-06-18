@@ -44,6 +44,8 @@ def optimize_max_sharpe(
     cons += factor_constraint_func(init_guess, factor_exposures, constraints.factor_bounds)
 
     result = minimize(neg_sharpe, init_guess, method="SLSQP", bounds=bounds, constraints=cons)
+    if not result.success:
+        raise ValueError(f"Max Sharpe optimization failed: {result.message}")
     return pd.Series(result.x, index=expected_returns.index)
 
 
@@ -70,5 +72,7 @@ def optimize_min_variance(
     cons += factor_constraint_func(init_guess, factor_exposures, constraints.factor_bounds)
 
     result = minimize(portfolio_vol, init_guess, method="SLSQP", bounds=bounds, constraints=cons)
+    if not result.success:
+        raise ValueError(f"Minimum variance optimization failed: {result.message}")
     index = expected_returns.index if expected_returns is not None else cov.index
     return pd.Series(result.x, index=index)
