@@ -8,12 +8,16 @@ This page maps RiskOptima to the five canonical projects commonly expected in a 
 
 RiskOptima includes a modular backtesting engine with strategy interfaces, portfolio state tracking, transaction cost estimation, and weight history output.
 
+The SMA crossover helper is intentionally simple and explainable: a short moving average above a long moving average represents positive trend momentum, while a bearish cross or risk rule exits the position. This gives users a transparent baseline strategy before they move into more complex signals.
+
 Core files:
 
 - `riskoptima/backtest/engine.py`
 - `riskoptima/backtest/strategy.py`
 - `riskoptima/backtest/portfolio.py`
+- `riskoptima/backtest/sma.py`
 - `tests/test_backtest_engine.py`
+- `tests/test_sma_backtest.py`
 
 ## 2. Portfolio Optimization
 
@@ -70,4 +74,3 @@ Core files:
 - `riskoptima/credit/simulation.py`
 - `08-credit_risk_model_demo.ipynb`
 - `tests/test_credit_risk.py`
-

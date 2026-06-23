@@ -80,6 +80,25 @@ equity_curve, weights_history = run_backtest(prices, strategy, config, cost_mode
 
 See `examples/example_factor_backtest.py` for a runnable end-to-end example.
 
+### SMA Crossover Strategy
+
+RiskOptima includes reusable SMA crossover helpers for a simple long-only trend-following workflow. The short moving average crossing above the long moving average creates an entry signal; a bearish cross, stop loss, or take profit closes the trade.
+
+```python
+from riskoptima.backtest import build_sma_signal_frame, run_sma_strategy_with_risk
+
+signals = build_sma_signal_frame(prices[["Close"]], short_window=20, long_window=50)
+trades = run_sma_strategy_with_risk(
+    "SPY",
+    start="2024-01-01",
+    end="2025-01-01",
+    stop_loss=0.05,
+    take_profit=0.10,
+)
+```
+
+The notebook `05-portfolio_sma_strategy.ipynb` shows single-asset, equal-weight multi-asset, and custom-weight portfolio runs.
+
 ### Offline sample datasets
 
 RiskOptima includes small synthetic datasets for deterministic examples:

@@ -54,7 +54,7 @@ class TestRiskOptimaLegacyAnalytics(unittest.TestCase):
         dates = pd.date_range("2024-01-01", periods=80, freq="B")
         prices = pd.DataFrame({"Close": np.linspace(100, 110, len(dates))}, index=dates)
 
-        with patch("riskoptima.riskoptima.yf.download", return_value=prices):
+        with patch("riskoptima.backtest.sma.download_close_prices", return_value=prices):
             trades = RiskOptima.run_sma_strategy_with_risk("SPY", "2024-01-01", "2024-04-30")
             self.assertIn("Return", trades.columns)
             self.assertTrue(trades.empty)
