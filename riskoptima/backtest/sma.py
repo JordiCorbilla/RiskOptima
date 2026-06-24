@@ -26,6 +26,8 @@ TRADE_COLUMNS = [
     "Exit Reason",
 ]
 
+PORTFOLIO_TRADE_COLUMNS = TRADE_COLUMNS + ["Weight", "Weighted Return"]
+
 
 def _close_frame(prices) -> pd.DataFrame:
     data = pd.DataFrame(prices).copy()
@@ -178,18 +180,16 @@ def run_strategy_on_portfolio(
             short_window=short_window,
             long_window=long_window,
         )
+        if trades_df.empty:
+            continue
         trades_df["Weight"] = row["Weight"]
-        trades_df["Weighted Return"] = (
-            trades_df["Return"] * row["Weight"] if "Return" in trades_df else pd.Series(dtype=float)
-        )
+        trades_df["Weighted Return"] = trades_df["Return"] * row["Weight"]
         results.append(trades_df)
 
     if not results:
-        return pd.DataFrame(columns=TRADE_COLUMNS + ["Weight", "Weighted Return"])
+        return pd.DataFrame(columns=PORTFOLIO_TRADE_COLUMNS)
 
     all_trades = pd.concat(results, ignore_index=True)
-    if all_trades.empty:
-        return all_trades
     return all_trades.sort_values(by="Entry Date")
 
 

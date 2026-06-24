@@ -7,6 +7,7 @@
 ###############################################################################
 
 import unittest
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -14,6 +15,7 @@ import pandas as pd
 
 from riskoptima.backtest import (
     build_sma_signal_frame,
+    run_strategy_on_portfolio,
     run_sma_strategy_with_risk,
     trades_from_sma_signals,
 )
@@ -80,6 +82,34 @@ class TestSMABacktestHelpers(unittest.TestCase):
             trades = run_sma_strategy_with_risk("TEST", "2024-01-01", "2024-04-30")
 
         self.assertIn("Return", trades.columns)
+
+    def test_portfolio_runner_skips_empty_trade_logs_without_concat_warning(self):
+        empty_trades = pd.DataFrame(
+            columns=[
+                "Ticker",
+                "Entry Date",
+                "Exit Date",
+                "Entry Price",
+                "Exit Price",
+                "Return",
+                "Exit Reason",
+            ]
+        )
+        asset_table = pd.DataFrame(
+            [
+                {"Asset": "A", "Weight": 0.5},
+                {"Asset": "B", "Weight": 0.5},
+            ]
+        )
+
+        with patch("riskoptima.backtest.sma.run_sma_strategy_with_risk", return_value=empty_trades):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                result = run_strategy_on_portfolio(asset_table, "2024-01-01", "2024-04-30")
+
+        self.assertTrue(result.empty)
+        self.assertIn("Weighted Return", result.columns)
+        self.assertFalse(any("DataFrame concatenation with empty" in str(item.message) for item in caught))
 
 
 if __name__ == "__main__":
