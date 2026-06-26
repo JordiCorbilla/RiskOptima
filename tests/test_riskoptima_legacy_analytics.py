@@ -70,6 +70,42 @@ class TestRiskOptimaLegacyAnalytics(unittest.TestCase):
                 RiskOptima.plot_sma_strategy_cumulative_return(portfolio_trades)
             plt.close("all")
 
+    def test_efficient_frontier_accepts_supplied_prices_and_returns_output(self):
+        dates = pd.date_range("2024-01-01", periods=80, freq="B")
+        prices = pd.DataFrame(
+            {
+                "AAA": np.linspace(100, 118, len(dates)),
+                "BBB": np.linspace(50, 54, len(dates)) + np.sin(np.arange(len(dates))) * 0.5,
+                "CCC": np.linspace(80, 84, len(dates)) + np.cos(np.arange(len(dates))) * 0.4,
+            },
+            index=dates,
+        )
+        asset_table = pd.DataFrame(
+            [
+                {"Asset": "AAA", "Weight": 0.5, "Label": "Alpha"},
+                {"Asset": "BBB", "Weight": 0.3, "Label": "Beta"},
+                {"Asset": "CCC", "Weight": 0.2, "Label": "Gamma"},
+            ]
+        )
+
+        output = RiskOptima.plot_efficient_frontier_monte_carlo(
+            asset_table,
+            price_data=prices,
+            benchmark_statistics=(0.08, 0.12, 0.67),
+            num_portfolios=100,
+            show_plot=False,
+            show_tables=False,
+            save_data=False,
+            save_plot=False,
+            return_output=True,
+        )
+
+        self.assertIn("simulated_portfolios", output)
+        self.assertIn("optimal_weights", output)
+        self.assertEqual(list(output["optimal_weights"].index), ["AAA", "BBB", "CCC"])
+        self.assertEqual(len(output["simulated_portfolios"]), 100)
+        plt.close(output["figure"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -51,7 +51,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-from xgboost import XGBRegressor
+try:
+    from xgboost import XGBRegressor
+except ImportError:
+    XGBRegressor = None
 from sklearn.svm import SVR
 from datetime import date, datetime, timedelta
 import seaborn as sns
@@ -1564,6 +1567,8 @@ class RiskOptima:
         elif model_type == 'Linear Regression':
             model = LinearRegression()
         elif model_type == 'XGBoost':
+            if XGBRegressor is None:
+                raise ImportError("XGBoost model_type requires the optional xgboost package.")
             model = XGBRegressor(objective='reg:squarederror', n_estimators=100, max_depth=3)
         elif model_type == 'SVR':
             model = SVR(kernel='rbf', C=1.0, epsilon=0.1)
@@ -1807,24 +1812,44 @@ class RiskOptima:
                                 x_pos_table=1.15,
                                 y_pos_table=0.52,
                                 show_tables=True,
-                                show_plot=True):
+                                show_plot=True,
+                                price_data=None,
+                                benchmark_statistics=None,
+                                save_data=True,
+                                save_plot=True,
+                                return_output=False):
+        """
+        Plot an efficient frontier with Monte Carlo simulated portfolios.
+
+        Existing notebook behavior is preserved by default. For application
+        integrations, callers can pass preloaded ``price_data`` and set
+        ``return_output=True`` to receive structured frontier data and the
+        matplotlib figure without forcing yfinance, CSV output, or display.
+        """
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         assets = asset_table['Asset'].tolist()
         current_weights = asset_table['Weight'].values if 'Weight' in asset_table.columns else None
         current_labels = asset_table['Label'].values if 'Label' in asset_table.columns else assets
 
-        # Download market data and save it to a CSV (optional)
-        asset_data = RiskOptima.download_data_yfinance(assets, start_date, end_date)
+        if price_data is None:
+            asset_data = RiskOptima.download_data_yfinance(assets, start_date, end_date)
+        else:
+            asset_data = pd.DataFrame(price_data).copy()
+            missing_assets = [asset for asset in assets if asset not in asset_data.columns]
+            if missing_assets:
+                raise ValueError(f"price_data is missing assets: {missing_assets}")
+            asset_data = asset_data.reindex(columns=assets)
 
         data_folder = "data"
 
-        if not os.path.exists(data_folder):
+        if save_data and not os.path.exists(data_folder):
             os.makedirs(data_folder)
 
         data_path = os.path.join(data_folder, f'market_data_{timestamp}.csv')
 
-        asset_data.to_csv(data_path)
+        if save_data:
+            asset_data.to_csv(data_path)
 
         # Compute daily returns and covariance matrix
         daily_returns, cov_matrix = RiskOptima.calculate_statistics(asset_data, risk_free_rate)
@@ -1836,13 +1861,12 @@ class RiskOptima:
             risk_free_rate=risk_free_rate
         )
 
-        # Retrieve market benchmark statistics
-        market_return, market_volatility, market_sharpe = RiskOptima.get_market_statistics(
-            market_benchmark, start_date, end_date, risk_free_rate
-        )
-        """
-        Plot an efficient frontier with additional details
-        """
+        if benchmark_statistics is None:
+            market_return, market_volatility, market_sharpe = RiskOptima.get_market_statistics(
+                market_benchmark, start_date, end_date, risk_free_rate
+            )
+        else:
+            market_return, market_volatility, market_sharpe = benchmark_statistics
         if set_ticks:
             x_ticks = np.linspace(0, 0.15, 16)  # Adjust the range and number of ticks as needed
             y_ticks = np.linspace(0, 0.30, 16)  # Adjust the range and number of ticks as needed
@@ -1909,6 +1933,9 @@ class RiskOptima:
         ax.grid(visible=True, which='minor', linestyle=':', linewidth=0.4, color='lightgray', alpha=0.5)
         ax.set_axisbelow(True)
 
+        curr_portfolio_return = np.nan
+        curr_portfolio_vol = np.nan
+        current_sharpe = np.nan
         if current_weights is not None:
             curr_portfolio_return = np.sum(current_weights * daily_returns.mean()) * RiskOptima.get_trading_days()
             curr_portfolio_vol = np.sqrt(
@@ -1996,15 +2023,50 @@ class RiskOptima:
 
         plt.tight_layout()
 
-        if not os.path.exists(plots_folder):
+        if save_plot and not os.path.exists(plots_folder):
             os.makedirs(plots_folder)
 
         plot_path = os.path.join(plots_folder, f"riskoptima_efficient_frontier_monte_carlo_{timestamp}.png")
 
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        if save_plot:
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
 
         if show_plot:
             plt.show()
+
+        if return_output:
+            structured_output = {
+                "figure": fig,
+                "axes": ax,
+                "plot_path": plot_path if save_plot else None,
+                "asset_data": asset_data,
+                "daily_returns": daily_returns,
+                "cov_matrix": cov_matrix,
+                "simulated_portfolios": simulated_portfolios,
+                "weights_record": weights_record,
+                "optimal_portfolio": optimal_portfolio,
+                "optimal_weights": pd.Series(optimal_weights, index=assets, name="optimal"),
+                "gmv_weights": pd.Series(w_gmv, index=assets, name="minimum_variance"),
+                "cml_weights": pd.Series(w_msr, index=assets, name="max_sharpe"),
+                "current_metrics": {
+                    "return": float(curr_portfolio_return),
+                    "volatility": float(curr_portfolio_vol),
+                    "sharpe": float(current_sharpe),
+                },
+                "optimal_metrics": {
+                    "return": float(optimal_portfolio['Return']),
+                    "volatility": float(optimal_portfolio['Volatility']),
+                    "sharpe": float(optimal_portfolio['Sharpe Ratio']),
+                },
+                "benchmark_metrics": {
+                    "return": float(market_return),
+                    "volatility": float(market_volatility),
+                    "sharpe": float(market_sharpe),
+                },
+                "portfolio_table": portfolio_df,
+                "stats_table": stats_df,
+            }
+            return structured_output
 
         return plt, portfolio_df, stats_df
 
