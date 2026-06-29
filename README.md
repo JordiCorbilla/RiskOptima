@@ -18,6 +18,8 @@ https://pypistats.org/packages/riskoptima
 - Modular Core: `MarketData`, `Portfolio`, and `BacktestConfig` types for clean workflows.
 - Backtesting Framework: Strategy interfaces, cost/slippage modeling, and performance tracking.
 - Risk Models: Factor risk model with exposures and factor-based covariance estimation.
+- Market Regimes: Gaussian Hidden Markov Models for bull, bear, and sideways regime detection.
+- Volatility Toolkit: historical, realized, EWMA, OHLC, and implied volatility estimators.
 - Optimization: Mean-variance, efficient frontier, max Sharpe, and constraint handling (bounds, leverage, turnover, factor limits).
 - Risk Management: VaR, CVaR, volatility, and drawdown analytics.
 - Monte Carlo Simulations: Analyze potential portfolio outcomes. See example here https://github.com/JordiCorbilla/efficient-frontier-monte-carlo-portfolio-optimization
@@ -30,7 +32,7 @@ https://pypistats.org/packages/riskoptima
 | Project | Notebook / Example | Package API | Screenshot |
 |---|---|---|---|
 | Algorithmic Trading Backtester | `05-portfolio_sma_strategy.ipynb` | `riskoptima.backtest` | ![Algorithmic backtesting](docs/assets/algorithmic_backtesting.png) |
-| Portfolio Optimization | `02-portfolio_optimization_riskoptima.ipynb` | `riskoptima.optim` | ![Portfolio optimization](docs/assets/portfolio_optimization.png) |
+| Portfolio Optimization | `02-portfolio_optimization_riskoptima.ipynb`, `09-portfolio_sophistication_report_demo.ipynb` | `riskoptima.optim`, `riskoptima.reporting` | ![Portfolio optimization](docs/assets/portfolio_optimization.png) |
 | Market Risk Dashboard | `examples/example_market_risk_dashboard.py` | `riskoptima.reporting` | ![Market risk dashboard](docs/assets/market_risk_dashboard.png) |
 | Option Pricing Engine | `examples/example_option_pricing_engine.py` | `riskoptima.options` | ![Option pricing engine](docs/assets/option_pricing_engine.png) |
 | Credit Risk Model | `08-credit_risk_model_demo.ipynb` | `riskoptima.credit` | ![Credit risk model](docs/assets/credit_risk_model.png) |
@@ -171,6 +173,87 @@ pip install streamlit
 streamlit run examples/streamlit_market_risk_dashboard.py
 ```
 
+### Markov Market Regime Model
+
+RiskOptima includes a Gaussian Hidden Markov Model workflow for identifying latent market regimes from return data. The report exposes the fitted transition matrix, regime probabilities, most likely regime path, summary statistics, and a chart that colors cumulative performance by inferred regime.
+
+```python
+import numpy as np
+import pandas as pd
+from riskoptima.reporting import build_markov_regime_report, plot_markov_regime_chart
+
+rng = np.random.default_rng(42)
+returns = pd.Series(
+    np.r_[
+        rng.normal(0.0005, 0.006, 120),
+        rng.normal(-0.0010, 0.018, 80),
+        rng.normal(0.0009, 0.008, 120),
+    ],
+    index=pd.bdate_range("2022-01-03", periods=320),
+)
+
+report = build_markov_regime_report(returns, n_regimes=3, random_state=42)
+print(report.metrics["transition_matrix"])
+print(report.metrics["regime_summary"])
+
+ax = plot_markov_regime_chart(report)
+ax.figure.savefig("markov_regime_chart.png", dpi=150, bbox_inches="tight")
+```
+
+To run the same regime model on a portfolio, convert asset returns into a single portfolio return series first:
+
+```python
+asset_returns = pd.DataFrame({
+    "SPY": rng.normal(0.0004, 0.010, 320),
+    "TLT": rng.normal(0.0001, 0.007, 320),
+    "GLD": rng.normal(0.0002, 0.009, 320),
+}, index=pd.bdate_range("2022-01-03", periods=320))
+
+weights = pd.Series({"SPY": 0.60, "TLT": 0.30, "GLD": 0.10})
+portfolio_returns = asset_returns.dot(weights)
+
+portfolio_regime_report = build_markov_regime_report(
+    portfolio_returns,
+    input_type="returns",
+    n_regimes=3,
+    random_state=42,
+)
+```
+
+See `10-markov_regime_model_demo.ipynb` for the market-index workflow and `11-portfolio_markov_regime_demo.ipynb` for the portfolio workflow.
+
+### Portfolio Sophistication Report
+
+RiskOptima can recreate the portfolio comparison chart shown in the "Mas sofisticacion = mejor portfolio?" discussion: cumulative wealth curves plus a table of return, volatility, drawdown, Sharpe, Calmar, Omega, Sortino, skew, kurtosis, tail ratio, common sense ratio, and VaR. The default methods compare minimum variance, tail-risk, drawdown-risk, return-to-risk, and equal-weight baselines.
+
+```python
+import pandas as pd
+from riskoptima.reporting import (
+    build_portfolio_sophistication_report,
+    plot_portfolio_sophistication_report,
+)
+
+returns = pd.DataFrame({
+    "MO": [0.004, -0.003, 0.002, 0.001],
+    "NWN": [0.002, 0.001, -0.001, 0.003],
+    "PEP": [0.003, -0.002, 0.004, 0.001],
+    "KO": [0.002, -0.001, 0.003, 0.002],
+})
+
+report = build_portfolio_sophistication_report(
+    returns,
+    methods=("MV", "CVaR", "EVaR", "CDaR", "MDD", "1N"),
+    confidence=0.95,
+)
+print(report.metrics["weights"])
+print(report.metrics["performance_table"])
+
+fig = plot_portfolio_sophistication_report(report)
+fig.savefig("portfolio_sophistication_report.png", dpi=150, bbox_inches="tight")
+```
+
+See `09-portfolio_sophistication_report_demo.ipynb` for a reproducible notebook using the existing defensive stock portfolio.
+
 ### Option Pricing Engine
 
 The clean options API covers Black-Scholes call/put pricing, Greeks, implied volatility, binomial trees, and Monte Carlo European option pricing while preserving the legacy `RiskOptima` class methods.
@@ -197,6 +280,43 @@ print(iv, mc)
 ```
 
 Run `examples/example_option_pricing_engine.py` for a full pricing comparison.
+
+### Volatility Toolkit
+
+RiskOptima includes a clean volatility API for close-to-close, intraday, OHLC, and option-implied volatility workflows.
+
+```python
+import pandas as pd
+from riskoptima.volatility import (
+    ewma_volatility,
+    garman_klass_volatility,
+    historical_volatility,
+    implied_volatility,
+    parkinson_volatility,
+    realized_volatility,
+    rolling_volatility,
+)
+
+prices = pd.Series([100.0, 101.2, 100.4, 102.1, 101.7])
+returns = prices.pct_change().dropna()
+
+print(historical_volatility(returns, input_type="returns"))
+print(rolling_volatility(returns, window=3))
+print(realized_volatility(prices, input_type="prices"))
+print(ewma_volatility(returns))
+
+ohlc = pd.DataFrame({
+    "Open": [100.0, 101.0, 100.5],
+    "High": [102.0, 102.5, 103.0],
+    "Low": [99.5, 100.2, 99.8],
+    "Close": [101.0, 100.5, 102.0],
+})
+print(parkinson_volatility(ohlc))
+print(garman_klass_volatility(ohlc))
+print(implied_volatility(10.45, 100, 100, 1.0, 0.05))
+```
+
+See `12-volatility_toolkit_demo.ipynb` for a reproducible notebook.
 
 ### Example 1: Setting up your portfolio
 
