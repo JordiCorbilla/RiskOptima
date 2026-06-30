@@ -22,12 +22,17 @@ class TestCorePublicApi(unittest.TestCase):
             "RiskOptima",
             "FactorRiskModel",
             "build_market_risk_report",
+            "build_markov_regime_report",
+            "fit_markov_regime_model",
             "expected_loss",
             "credit_var",
             "merton_pd",
             "black_scholes_price",
             "black_scholes_greeks",
             "implied_volatility",
+            "historical_volatility",
+            "realized_volatility",
+            "ewma_volatility",
         ]
         for name in expected_exports:
             self.assertTrue(hasattr(riskoptima, name), name)

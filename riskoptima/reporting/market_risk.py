@@ -13,6 +13,7 @@ import pandas as pd
 from scipy.stats import norm
 
 from riskoptima.core import RiskReport
+from riskoptima.volatility import historical_volatility, rolling_volatility
 
 
 def _validated_weights(weights, columns) -> pd.Series:
@@ -81,7 +82,7 @@ def build_market_risk_report(
     rf_per_period = (1.0 + risk_free_rate) ** (1.0 / periods_per_year) - 1.0
     excess = portfolio - rf_per_period
     annualized_return = float((1.0 + portfolio).prod() ** (periods_per_year / len(portfolio)) - 1.0)
-    annualized_volatility = float(portfolio.std(ddof=0) * np.sqrt(periods_per_year))
+    annualized_volatility = historical_volatility(portfolio, periods_per_year=periods_per_year)
     downside = portfolio[portfolio < 0].std(ddof=0) * np.sqrt(periods_per_year)
     sharpe = float((excess.mean() * periods_per_year) / annualized_volatility) if annualized_volatility else np.nan
     sortino = float((excess.mean() * periods_per_year) / downside) if downside and not np.isnan(downside) else np.nan
@@ -116,9 +117,7 @@ def build_market_risk_report(
                 else np.nan
             )
 
-    rolling_volatility = (portfolio.rolling(rolling_window).std(ddof=0) * np.sqrt(periods_per_year)).rename(
-        "rolling_volatility"
-    )
+    rolling_vol = rolling_volatility(portfolio, window=rolling_window, periods_per_year=periods_per_year)
     rolling_drawdown = _rolling_drawdown(portfolio)
 
     return RiskReport(
@@ -135,7 +134,7 @@ def build_market_risk_report(
             "beta": beta,
             "tracking_error": tracking_error,
             "information_ratio": information_ratio,
-            "rolling_volatility": rolling_volatility,
+            "rolling_volatility": rolling_vol,
             "rolling_drawdown": rolling_drawdown,
             "portfolio_returns": portfolio,
         }
@@ -158,7 +157,7 @@ def plot_rolling_volatility(returns, window=21, periods_per_year=252, ax=None, *
     import matplotlib.pyplot as plt
 
     series = _portfolio_returns(returns)
-    rolling_vol = series.rolling(window).std(ddof=0) * np.sqrt(periods_per_year)
+    rolling_vol = rolling_volatility(series, window=window, periods_per_year=periods_per_year)
     ax = ax or plt.gca()
     rolling_vol.plot(ax=ax, **kwargs)
     ax.set_title("Rolling Volatility")
