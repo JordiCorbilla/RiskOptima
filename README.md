@@ -5,7 +5,7 @@
 [![CI](https://github.com/JordiCorbilla/RiskOptima/actions/workflows/ci.yml/badge.svg)](https://github.com/JordiCorbilla/RiskOptima/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/JordiCorbilla/RiskOptima.svg)](LICENSE)
 
-![image](https://github.com/user-attachments/assets/b9bc3bd0-d8fa-4f01-97e6-44bf4b886bcb)
+<img width="1942" height="809" alt="image" src="https://github.com/user-attachments/assets/67a747aa-41dc-471a-8de7-5aaa14c6072a" />
 
 
 RiskOptima is a comprehensive Python toolkit for evaluating, managing, and optimizing investment portfolios. This package is designed to empower investors and data scientists by combining financial risk analysis, backtesting, mean-variance optimization, and machine learning capabilities into a single, cohesive package.
