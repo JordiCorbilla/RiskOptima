@@ -21,6 +21,12 @@ class TestCorePublicApi(unittest.TestCase):
         expected_exports = [
             "RiskOptima",
             "FactorRiskModel",
+            "OptimizationResult",
+            "OptionBook",
+            "OptionContract",
+            "component_volatility_contribution",
+            "StressScenario",
+            "run_stress_scenario",
             "build_market_risk_report",
             "build_markov_regime_report",
             "fit_markov_regime_model",

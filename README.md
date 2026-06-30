@@ -27,6 +27,14 @@ https://pypistats.org/packages/riskoptima
 - Quant Models: Black-Litterman, stochastic volatility models, and options/Greeks analytics.
 - Portfolio Projects: algorithmic trading/backtesting, portfolio optimization, market risk dashboard, option pricing engine, and credit risk model workflows.
 
+## What's New
+
+- Professional options analytics: `OptionContract`, `OptionBook`, option book valuation, Greek aggregation, scenario grids, implied-vol surfaces, and event straddle analysis.
+- Hardened optimizer constraints: optional `OptimizationResult`, leverage limits, turnover limits, factor bounds, sector bounds, asset-class bounds, and covariance helpers.
+- Risk attribution and scenario analytics: component volatility/VaR/CVaR, factor risk contribution, tracking error contribution, deterministic stress scenarios, and scenario sets.
+- New synthetic examples: `examples/example_option_book_analytics.py`, `examples/example_optimizer_constraints.py`, and `examples/example_risk_attribution_scenarios.py`.
+- New docs: `docs/options_analytics.md`, `docs/optimizer_constraints.md`, and `docs/risk_attribution_and_scenarios.md`.
+
 ## Quant Portfolio Project Map
 
 | Project | Notebook / Example | Package API | Screenshot |

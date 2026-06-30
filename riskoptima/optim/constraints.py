@@ -21,6 +21,8 @@ class Constraints:
     leverage_limit: Optional[float] = 1.0
     turnover_limit: Optional[float] = None
     factor_bounds: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    sector_bounds: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    asset_class_bounds: Dict[str, Tuple[float, float]] = field(default_factory=dict)
 
     def bounds(self, n_assets: int):
         return (self.weight_bounds,) * n_assets
@@ -43,4 +45,40 @@ def factor_constraint_func(weights: np.ndarray, exposures: pd.DataFrame, bounds:
         f_exp = exposures[factor].values
         constraints.append({"type": "ineq", "fun": lambda w, f=f_exp, lb=lower: np.dot(w, f) - lb})
         constraints.append({"type": "ineq", "fun": lambda w, f=f_exp, ub=upper: ub - np.dot(w, f)})
+    return constraints
+
+
+def exposure_constraint_func(
+    exposures: pd.DataFrame,
+    bounds: Dict[str, Tuple[float, float]],
+    allow_missing_factors: bool = False,
+):
+    if exposures is None or not bounds:
+        return []
+    constraints = []
+    missing = [factor for factor in bounds if factor not in exposures.columns]
+    if missing and not allow_missing_factors:
+        raise ValueError(f"factor exposures are missing columns: {missing}")
+    for factor, (lower, upper) in bounds.items():
+        if factor not in exposures.columns:
+            continue
+        f_exp = exposures[factor].values.astype(float)
+        constraints.append({"type": "ineq", "fun": lambda w, f=f_exp, lb=lower: np.dot(w, f) - lb})
+        constraints.append({"type": "ineq", "fun": lambda w, f=f_exp, ub=upper: ub - np.dot(w, f)})
+    return constraints
+
+
+def category_constraint_func(metadata: pd.DataFrame, column: str, bounds: Dict[str, Tuple[float, float]]):
+    if metadata is None or not bounds:
+        return []
+    if column not in metadata.columns:
+        raise ValueError(f"metadata is missing required column: {column}")
+    constraints = []
+    values = metadata[column]
+    for category, (lower, upper) in bounds.items():
+        mask = (values == category).astype(float).values
+        if mask.sum() == 0:
+            raise ValueError(f"metadata does not contain {column} category: {category}")
+        constraints.append({"type": "ineq", "fun": lambda w, m=mask, lb=lower: np.dot(w, m) - lb})
+        constraints.append({"type": "ineq", "fun": lambda w, m=mask, ub=upper: ub - np.dot(w, m)})
     return constraints
