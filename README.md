@@ -33,8 +33,8 @@ https://pypistats.org/packages/riskoptima
 |---|---|---|---|
 | Algorithmic Trading Backtester | `05-portfolio_sma_strategy.ipynb` | `riskoptima.backtest` | ![Algorithmic backtesting](docs/assets/algorithmic_backtesting.png) |
 | Portfolio Optimization | `02-portfolio_optimization_riskoptima.ipynb`, `09-portfolio_sophistication_report_demo.ipynb` | `riskoptima.optim`, `riskoptima.reporting` | ![Portfolio optimization](docs/assets/portfolio_optimization.png) |
-| Market Risk Dashboard | `examples/example_market_risk_dashboard.py` | `riskoptima.reporting` | ![Market risk dashboard](docs/assets/market_risk_dashboard.png) |
-| Option Pricing Engine | `examples/example_option_pricing_engine.py` | `riskoptima.options` | ![Option pricing engine](docs/assets/option_pricing_engine.png) |
+| Market Risk Dashboard | `examples/example_market_risk_dashboard.py`, `10-markov_regime_model_demo.ipynb`, `11-portfolio_markov_regime_demo.ipynb`, `12-volatility_toolkit_demo.ipynb` | `riskoptima.reporting`, `riskoptima.risk`, `riskoptima.volatility` | ![Market risk dashboard](docs/assets/market_risk_dashboard.png) |
+| Option Pricing Engine | `examples/example_option_pricing_engine.py`, `12-volatility_toolkit_demo.ipynb` | `riskoptima.options`, `riskoptima.volatility` | ![Option pricing engine](docs/assets/option_pricing_engine.png) |
 | Credit Risk Model | `08-credit_risk_model_demo.ipynb` | `riskoptima.credit` | ![Credit risk model](docs/assets/credit_risk_model.png) |
 
 See `docs/quant_project_map.md` for a recruiter/interviewer-friendly walkthrough of the five projects.
