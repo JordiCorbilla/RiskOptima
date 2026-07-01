@@ -17,6 +17,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.special import logsumexp
 
+from riskoptima.branding import add_riskoptima_signature
 from riskoptima.core import RiskReport
 from riskoptima.optim import optimize_max_sharpe, optimize_min_variance
 
@@ -371,6 +372,7 @@ def plot_portfolio_sophistication_report(
             cell.set_text_props(weight="bold")
         elif row % 2 == 0:
             cell.set_facecolor("#f3f3f3")
+    add_riskoptima_signature(fig, y=0.005)
     return fig
 
 

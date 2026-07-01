@@ -15,6 +15,8 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+from riskoptima.branding import add_riskoptima_signature
+
 
 TRADE_COLUMNS = [
     "Ticker",
@@ -210,16 +212,7 @@ def plot_sma_strategy_cumulative_return(trade_log: pd.DataFrame, title="Portfoli
     plt.xlabel("Date")
     plt.ylabel("Cumulative Return")
     plt.grid(alpha=0.3)
-    plt.text(
-        0.995,
-        -0.20,
-        "Created by RiskOptima",
-        fontsize=12,
-        color="gray",
-        alpha=0.7,
-        transform=ax.transAxes,
-        ha="right",
-    )
+    add_riskoptima_signature(ax, y=-0.20, fontsize=12)
     plt.tight_layout()
     plt.show()
 
@@ -245,6 +238,7 @@ def plot_sma_strategy_trades(signal_frame: pd.DataFrame, ticker: str):
     plt.ylabel("Price")
     plt.legend()
     plt.grid(alpha=0.3)
+    add_riskoptima_signature(ax, y=-0.12, fontsize=12)
     plt.tight_layout()
 
     plots_folder = "plots"

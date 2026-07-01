@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
+from riskoptima.branding import add_riskoptima_signature
 from riskoptima.core import RiskReport
 from riskoptima.volatility import historical_volatility, rolling_volatility
 
@@ -150,6 +151,7 @@ def plot_drawdown_curve(returns, ax=None, **kwargs):
     drawdown.plot(ax=ax, **kwargs)
     ax.set_title("Drawdown")
     ax.set_ylabel("Drawdown")
+    add_riskoptima_signature(ax)
     return ax
 
 
@@ -162,6 +164,7 @@ def plot_rolling_volatility(returns, window=21, periods_per_year=252, ax=None, *
     rolling_vol.plot(ax=ax, **kwargs)
     ax.set_title("Rolling Volatility")
     ax.set_ylabel("Annualized Volatility")
+    add_riskoptima_signature(ax)
     return ax
 
 
@@ -178,6 +181,7 @@ def plot_var_cvar_distribution(returns, confidence=0.99, ax=None, bins=40, **kwa
     ax.axvline(cvar, color="black", linestyle="-", label=f"CVaR {confidence:.0%}")
     ax.set_title("Loss Distribution")
     ax.legend()
+    add_riskoptima_signature(ax)
     return ax
 
 
@@ -190,4 +194,5 @@ def plot_correlation_heatmap(returns, ax=None, **kwargs):
     ax = ax or plt.gca()
     sns.heatmap(corr, annot=True, cmap="coolwarm", center=0, ax=ax, **kwargs)
     ax.set_title("Correlation Heatmap")
+    add_riskoptima_signature(ax)
     return ax

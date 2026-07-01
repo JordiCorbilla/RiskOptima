@@ -72,6 +72,7 @@ from riskoptima.optim.mean_variance import optimize_max_sharpe, optimize_min_var
 from riskoptima.optim.costs import SimpleCostModel
 from riskoptima.backtest.engine import run_backtest
 from riskoptima.core.types import BacktestConfig
+from riskoptima.branding import RISKOPTIMA_VERSION, add_riskoptima_signature
 
 import warnings
 warnings.filterwarnings(
@@ -82,7 +83,7 @@ warnings.filterwarnings(
 
 class RiskOptima:
     TRADING_DAYS = 260  # default is 260, though 252 is also common
-    VERSION = '2.5.0'
+    VERSION = RISKOPTIMA_VERSION
 
     @staticmethod
     def get_trading_days():
@@ -392,7 +393,9 @@ class RiskOptima:
             "Returns": rets,
             "Volatility": volatilities
         })
-        return ef.plot.line(x="Volatility", y="Returns", style=style)
+        ax = ef.plot.line(x="Volatility", y="Returns", style=style)
+        add_riskoptima_signature(ax)
+        return ax
 
     @staticmethod
     def minimize_volatility(target_return, expected_returns, cov):
@@ -494,6 +497,7 @@ class RiskOptima:
             r_gmv = RiskOptima.portfolio_return(w_gmv, expected_returns)
             vol_gmv = RiskOptima.portfolio_volatility(w_gmv, cov)
             ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10)
+        add_riskoptima_signature(ax)
         return ax
 
     @staticmethod
@@ -510,7 +514,7 @@ class RiskOptima:
             "Returns": rets,
             "Volatility": volatilities
         })
-        ef.plot.line(x="Volatility", y="Returns", style=style, legend=legend, ax=ax)
+        ax = ef.plot.line(x="Volatility", y="Returns", style=style, legend=legend, ax=ax)
         w_msr = None
         w_gmv = None
         if show_cml:
@@ -535,6 +539,7 @@ class RiskOptima:
             vol_gmv = RiskOptima.portfolio_volatility(w_gmv, cov)
             ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10,
                     label='Global Minimum-variance Portfolio (GMV)')
+        add_riskoptima_signature(ax)
         return ax, w_msr, w_gmv
 
     @staticmethod
@@ -3023,6 +3028,7 @@ class RiskOptima:
         plt.ylabel('Interest Rate (%)')
         plt.gca().xaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
         plt.gca().yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
+        add_riskoptima_signature(plt.gca())
         plt.show()
 
     @staticmethod

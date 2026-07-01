@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from riskoptima.branding import add_riskoptima_signature
 from riskoptima.core import RiskReport
 from riskoptima.risk import fit_markov_regime_model, regime_summary
 
@@ -99,6 +100,7 @@ def plot_markov_regime_chart(
     ax.set_xlabel("Date")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="best", fontsize=8)
+    add_riskoptima_signature(ax)
     return ax
 
 
@@ -118,5 +120,6 @@ def plot_markov_regime_probabilities(
     ax.set_xlabel("Date")
     ax.set_ylim(0.0, 1.0)
     ax.grid(True, alpha=0.25)
+    add_riskoptima_signature(ax)
     return ax
 

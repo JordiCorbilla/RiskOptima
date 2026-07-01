@@ -31,6 +31,8 @@ call = black_scholes_price(100, 100, 1.0, 0.05, 0.20, option_type="call")
 
 See [Quant Project Map](quant_project_map.md) for the recruiter/interviewer view.
 
+For the institutional workflow, see `13-institutional_risk_engine_demo.ipynb`, which combines option book analytics, constrained optimization, risk attribution, and stress scenarios.
+
 ## SMA Strategy Helpers
 
 The SMA helpers in `riskoptima.backtest.sma` provide a transparent baseline strategy:
@@ -40,4 +42,3 @@ The SMA helpers in `riskoptima.backtest.sma` provide a transparent baseline stra
 - generate a trade log
 - apply optional stop-loss and take-profit exits
 - run the workflow across one ticker or a weighted asset table
-

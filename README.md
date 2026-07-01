@@ -33,6 +33,7 @@ https://pypistats.org/packages/riskoptima
 - Hardened optimizer constraints: optional `OptimizationResult`, leverage limits, turnover limits, factor bounds, sector bounds, asset-class bounds, and covariance helpers.
 - Risk attribution and scenario analytics: component volatility/VaR/CVaR, factor risk contribution, tracking error contribution, deterministic stress scenarios, and scenario sets.
 - New synthetic examples: `examples/example_option_book_analytics.py`, `examples/example_optimizer_constraints.py`, and `examples/example_risk_attribution_scenarios.py`.
+- New notebook: `13-institutional_risk_engine_demo.ipynb`.
 - New docs: `docs/options_analytics.md`, `docs/optimizer_constraints.md`, and `docs/risk_attribution_and_scenarios.md`.
 
 ## Quant Portfolio Project Map
