@@ -503,7 +503,8 @@ class RiskOptima:
     @staticmethod
     def plot_ef_ax(n_points, expected_returns, cov, style='.-',
                    legend=False, show_cml=False, riskfree_rate=0,
-                   show_ew=False, show_gmv=False, ax=None):
+                   show_ew=False, show_gmv=False, ax=None,
+                   add_signature=True):
         """
         Plots the multi-asset efficient frontier
         """
@@ -539,7 +540,8 @@ class RiskOptima:
             vol_gmv = RiskOptima.portfolio_volatility(w_gmv, cov)
             ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10,
                     label='Global Minimum-variance Portfolio (GMV)')
-        add_riskoptima_signature(ax)
+        if add_signature:
+            add_riskoptima_signature(ax)
         return ax, w_msr, w_gmv
 
     @staticmethod
@@ -1931,7 +1933,8 @@ class RiskOptima:
             riskfree_rate=risk_free_rate,
             show_ew=show_ew,
             show_gmv=show_gmv,
-            ax=ax
+            ax=ax,
+            add_signature=False
         )
 
         ax.grid(visible=True, which='major', linestyle='--', linewidth=0.5, color='gray', alpha=0.7)

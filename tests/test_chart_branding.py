@@ -49,3 +49,18 @@ def test_reporting_charts_include_signature():
     ax = plot_markov_regime_chart(report)
     assert any(riskoptima_signature() in text.get_text() for text in ax.texts)
     plt.close(ax.figure)
+
+
+def test_efficient_frontier_helper_can_suppress_embedded_signature():
+    expected_returns = pd.Series([0.08, 0.05], index=["A", "B"])
+    cov = pd.DataFrame([[0.04, 0.01], [0.01, 0.02]], index=expected_returns.index, columns=expected_returns.index)
+
+    fig, ax = plt.subplots()
+    RiskOptima.plot_ef_ax(10, expected_returns, cov, ax=ax, add_signature=False)
+    assert not any(riskoptima_signature() in text.get_text() for text in ax.texts)
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    RiskOptima.plot_ef_ax(10, expected_returns, cov, ax=ax)
+    assert sum(riskoptima_signature() in text.get_text() for text in ax.texts) == 1
+    plt.close(fig)
