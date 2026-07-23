@@ -33,6 +33,8 @@ See [Quant Project Map](quant_project_map.md) for the recruiter/interviewer view
 
 For the institutional workflow, see `13-institutional_risk_engine_demo.ipynb`, which combines option book analytics, constrained optimization, risk attribution, and stress scenarios.
 
+Interest-rate curve construction and conventions are documented in [Interest-Rate Curves](interest_rate_curves.md). The `DiscountCurve.to_dict()` payload is suitable for RiskOptima platform APIs.
+
 ## SMA Strategy Helpers
 
 The SMA helpers in `riskoptima.backtest.sma` provide a transparent baseline strategy:

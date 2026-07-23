@@ -11,9 +11,10 @@
 #----------------------------------------------------------------------------
 # Created By  : Jordi Corbilla
 # Created Date: 2025
-# version ='2.5.2'
+# version ='2.7.0'
 # ---------------------------------------------------------------------------
 
+from ._version import __version__
 from .riskoptima import RiskOptima
 from .core import MarketData, Portfolio, BacktestConfig, RiskReport
 from .risk import (
@@ -40,8 +41,20 @@ from .volatility import (
     rolling_volatility,
 )
 
+from .rates import (
+    BusinessCalendar,
+    DiscountCurve,
+    MultiCurveSet,
+    bootstrap_discount_curve,
+    bootstrap_sofr_curve,
+    key_rate_dv01,
+    price_fixed_rate_bond,
+    reprice_curve_instruments,
+)
+
 __all__ = [
     "RiskOptima",
+    "__version__",
     "MarketData",
     "Portfolio",
     "BacktestConfig",
@@ -77,4 +90,12 @@ __all__ = [
     "rolling_volatility",
     "realized_volatility",
     "ewma_volatility",
+    "DiscountCurve",
+    "BusinessCalendar",
+    "MultiCurveSet",
+    "bootstrap_discount_curve",
+    "bootstrap_sofr_curve",
+    "key_rate_dv01",
+    "price_fixed_rate_bond",
+    "reprice_curve_instruments",
 ]

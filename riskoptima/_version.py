@@ -1,9 +1,9 @@
 ###############################################################################
-#                                 __init__.py                                  
+#                                _version.py
 ###############################################################################
 # Product: RiskOptima
 # Author: Jordi Corbilla
-# Description: RiskOptima module
+# Description: Package version shared by public APIs and chart branding
 ###############################################################################
 
-__all__: list[str] = []
+__version__ = "2.7.0"

@@ -105,7 +105,7 @@ def _build_constraints(
 
 
 def _active_constraints(weights, constraints: Constraints, previous_weights=None, factor_exposures=None, metadata=None):
-    active = {
+    active: dict[str, object] = {
         "gross_leverage": float(np.sum(np.abs(weights))),
     }
     if previous_weights is not None:

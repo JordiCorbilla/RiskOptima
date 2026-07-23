@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -54,11 +54,11 @@ class OptionValuationResult:
     market_value: float
 
 
-def _validate_option_type(option_type: str) -> str:
+def _validate_option_type(option_type: str) -> OptionType:
     value = option_type.lower()
     if value not in {"call", "put"}:
         raise ValueError("option_type must be 'call' or 'put'")
-    return value
+    return cast(OptionType, value)
 
 
 def _time_to_expiry(expiry, valuation_date, day_count: float = 365.0) -> float:

@@ -54,7 +54,7 @@ from matplotlib.ticker import FuncFormatter
 try:
     from xgboost import XGBRegressor
 except ImportError:
-    XGBRegressor = None
+    XGBRegressor = None  # type: ignore[misc, assignment]
 from sklearn.svm import SVR
 from datetime import date, datetime, timedelta
 import seaborn as sns
@@ -1044,9 +1044,9 @@ class RiskOptima:
         breach = terminal_wealth < floor
         reach = terminal_wealth >= cap
         p_breach = breach.mean() if breach.sum() > 0 else np.nan
-        p_reach = breach.mean() if reach.sum() > 0 else np.nan
+        p_reach = reach.mean() if reach.sum() > 0 else np.nan
         e_short = (floor-terminal_wealth[breach]).mean() if breach.sum() > 0 else np.nan
-        e_surplus = (cap-terminal_wealth[reach]).mean() if reach.sum() > 0 else np.nan
+        e_surplus = (terminal_wealth[reach]-cap).mean() if reach.sum() > 0 else np.nan
         sum_stats = pd.DataFrame.from_dict({
             "mean": terminal_wealth.mean(),
             "std" : terminal_wealth.std(axis=0),
@@ -1156,7 +1156,7 @@ class RiskOptima:
         """
         n = len(cash_flows)
         times = np.arange(1, n + 1) / freq
-        discount_factors = RiskOptima.discount(times, yield_rate).values.flatten()
+        discount_factors = RiskOptima.discount_v2(times, yield_rate, freq).values.flatten()
         present_values = cash_flows * discount_factors
         return sum(present_values)
 
@@ -1167,7 +1167,7 @@ class RiskOptima:
         """
         n = len(cash_flows)
         times = np.arange(1, n + 1) / freq
-        discount_factors = RiskOptima.discount(times, yield_rate).values.flatten()
+        discount_factors = RiskOptima.discount_v2(times, yield_rate, freq).values.flatten()
         present_values = cash_flows * discount_factors
 
         weighted_sum = sum(times * present_values)
@@ -1196,14 +1196,13 @@ class RiskOptima:
 
         # Compute Dollar Duration
         bond_price = total_present_value
-        face_value = 1000  # Assuming face value is 1000
-        dollar_duration = modified_duration * bond_price / face_value
+        dollar_duration = modified_duration * bond_price / 100
 
         # Compute PVBP (DV01)
-        pvbp = dollar_duration / 100
+        pvbp = modified_duration * bond_price * 0.0001
 
         # Compute Convexity
-        convexity_factors = times * (times + 1)
+        convexity_factors = times * (times + 1 / freq)
         convexity = sum(present_values * convexity_factors) / (bond_price * (1 + yield_rate / freq) ** 2)
 
         # Store detailed calculation breakdown
@@ -3549,7 +3548,7 @@ class RiskOptima:
         return corr_matrix
     
     @staticmethod    
-    def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float = None, take_profit: float = None):
+    def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float | None = None, take_profit: float | None = None):
         from riskoptima.backtest.sma import run_sma_strategy_with_risk
 
         return run_sma_strategy_with_risk(
@@ -3562,7 +3561,7 @@ class RiskOptima:
     
     @staticmethod 
     def run_strategy_on_portfolio(asset_table: pd.DataFrame, start: str, end: str,
-                                  stop_loss: float = None, take_profit: float = None):
+                                  stop_loss: float | None = None, take_profit: float | None = None):
         from riskoptima.backtest.sma import run_strategy_on_portfolio
 
         return run_strategy_on_portfolio(
@@ -3815,10 +3814,10 @@ class RiskOptima:
 
     @staticmethod
     def optimize_min_variance_with_factors(cov: pd.DataFrame,
-                                           expected_returns: pd.Series = None,
-                                           target_return: float = None,
-                                           factor_exposures: pd.DataFrame = None,
-                                           factor_bounds: dict = None):
+                                           expected_returns: pd.Series | None = None,
+                                           target_return: float | None = None,
+                                           factor_exposures: pd.DataFrame | None = None,
+                                           factor_bounds: dict | None = None):
         """
         Minimum variance optimizer with optional return target and factor constraints.
         """

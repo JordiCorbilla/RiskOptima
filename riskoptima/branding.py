@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
-RISKOPTIMA_VERSION = "2.5.2"
+from ._version import __version__
+
+RISKOPTIMA_VERSION = __version__
 
 
 def riskoptima_signature() -> str:

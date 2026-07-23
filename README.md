@@ -29,6 +29,7 @@ https://pypistats.org/packages/riskoptima
 
 ## What's New
 
+- Institutional interest-rate term structures: dated SOFR deposits, FOMC intervals, futures and OIS swaps; separate projection curves; calibration Jacobians; key-rate DV01; JSON-safe payloads; and branded curve charts.
 - Professional options analytics: `OptionContract`, `OptionBook`, option book valuation, Greek aggregation, scenario grids, implied-vol surfaces, and event straddle analysis.
 - Hardened optimizer constraints: optional `OptimizationResult`, leverage limits, turnover limits, factor bounds, sector bounds, asset-class bounds, and covariance helpers.
 - Risk attribution and scenario analytics: component volatility/VaR/CVaR, factor risk contribution, tracking error contribution, deterministic stress scenarios, and scenario sets.
@@ -118,6 +119,30 @@ RiskOptima includes small synthetic datasets for deterministic examples:
 - `data/synthetic_credit_portfolio.csv`
 
 These are intentionally small and have no external data dependency.
+
+### Interest-Rate Curves
+
+RiskOptima now turns deposit and par-swap quotes into a reusable discount curve for fixed-income valuation, forward-rate analysis, and platform dashboards. The default interpolation is log-linear in discount factors; smooth zero-rate alternatives are also available.
+
+```python
+import pandas as pd
+from riskoptima.rates import bootstrap_discount_curve, reprice_curve_instruments
+
+quotes = pd.DataFrame({
+    "instrument_type": ["deposit", "swap", "swap"],
+    "maturity": [0.5, 2.0, 5.0],
+    "rate": [0.0500, 0.0460, 0.0425],
+    "payment_frequency": [None, 2, 2],
+})
+
+curve = bootstrap_discount_curve(quotes, valuation_date="2026-07-22")
+print(curve.discount_factor(3.0))
+print(curve.forward_rate(1.0, 2.0))
+print(curve.par_swap_rate(5.0))
+print(reprice_curve_instruments(curve, quotes))
+```
+
+Run `examples/example_sofr_curve.py` for the compact tenor workflow and `examples/example_institutional_sofr_curves.py` for dated SOFR instruments, multi-curve calibration, quote Jacobians, and key-rate DV01. See `docs/interest_rate_curves.md` for conventions and platform serialization.
 
 ### Credit Risk Model
 

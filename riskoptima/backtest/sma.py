@@ -90,8 +90,8 @@ def build_sma_signal_frame(prices, short_window: int = 20, long_window: int = 50
 def trades_from_sma_signals(
     signal_frame: pd.DataFrame,
     ticker: str,
-    stop_loss: float = None,
-    take_profit: float = None,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
 ) -> pd.DataFrame:
     """
     Converts SMA entry/exit signals into a long-only trade log.
@@ -115,6 +115,7 @@ def trades_from_sma_signals(
             entry_price = price
             entry_date = exit_date
         elif position == "long":
+            assert entry_price is not None
             pnl = (price - entry_price) / entry_price
             hit_stop = stop_loss is not None and pnl <= -stop_loss
             hit_take = take_profit is not None and pnl >= take_profit
@@ -142,11 +143,11 @@ def run_sma_strategy_with_risk(
     ticker: str,
     start: str,
     end: str,
-    stop_loss: float = None,
-    take_profit: float = None,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
     short_window: int = 20,
     long_window: int = 50,
-    prices: pd.DataFrame = None,
+    prices: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """
     Runs an SMA crossover strategy for one ticker and returns a trade log.
@@ -160,8 +161,8 @@ def run_strategy_on_portfolio(
     asset_table: pd.DataFrame,
     start: str,
     end: str,
-    stop_loss: float = None,
-    take_profit: float = None,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
     short_window: int = 20,
     long_window: int = 50,
 ) -> pd.DataFrame:
