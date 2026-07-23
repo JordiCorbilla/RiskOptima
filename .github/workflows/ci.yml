@@ -29,7 +29,7 @@ jobs:
           python -m pip install pytest "mypy>=1.10,<2"
 
       - name: Run type checks
-        run: python -m mypy riskoptima
+        run: python -m mypy --python-version "${{ matrix.python-version }}" riskoptima
 
       - name: Run tests
         run: pytest -q tests
