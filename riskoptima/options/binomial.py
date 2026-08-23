@@ -18,14 +18,16 @@ def binomial_tree_price(S, K, T, r, sigma, steps=100, option_type="call", q=0.0,
     option_type = option_type.lower()
     if option_type not in {"call", "put"}:
         raise ValueError("option_type must be 'call' or 'put'")
+    if not np.isfinite(np.asarray([S, K, T, r, sigma, q], dtype=float)).all():
+        raise ValueError("S, K, T, r, sigma, and q must be finite")
     if S <= 0 or K <= 0:
         raise ValueError("S and K must be positive")
     if T < 0:
         raise ValueError("T must be non-negative")
     if sigma < 0:
         raise ValueError("sigma must be non-negative")
-    if steps <= 0:
-        raise ValueError("steps must be positive")
+    if isinstance(steps, bool) or not isinstance(steps, (int, np.integer)) or steps <= 0:
+        raise ValueError("steps must be a positive integer")
     if T == 0:
         intrinsic = max(S - K, 0.0) if option_type == "call" else max(K - S, 0.0)
         return float(intrinsic)

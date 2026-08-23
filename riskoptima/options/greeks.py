@@ -21,6 +21,8 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type="call", q=0.0):
     option_type = option_type.lower()
     if option_type not in {"call", "put"}:
         raise ValueError("option_type must be 'call' or 'put'")
+    if not np.isfinite(np.asarray([S, K, T, r, sigma, q], dtype=float)).all():
+        raise ValueError("S, K, T, r, sigma, and q must be finite")
     if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
         raise ValueError("S, K, T, and sigma must be positive")
 

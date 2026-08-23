@@ -24,6 +24,8 @@ def black_scholes_price(S, K, T, r, sigma, option_type="call", q=0.0):
     Prices a European option using the Black-Scholes-Merton formula.
     """
     option_type = _option_type(option_type)
+    if not np.isfinite(np.asarray([S, K, T, r, sigma, q], dtype=float)).all():
+        raise ValueError("S, K, T, r, sigma, and q must be finite")
     if S <= 0 or K <= 0:
         raise ValueError("S and K must be positive")
     if T < 0:

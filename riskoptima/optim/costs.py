@@ -18,6 +18,12 @@ class SimpleCostModel:
     spread_bps: float = 2.0
     impact_coeff: float = 0.0
 
+    def __post_init__(self):
+        if not math.isfinite(self.spread_bps) or self.spread_bps < 0:
+            raise ValueError("spread_bps must be non-negative and finite")
+        if not math.isfinite(self.impact_coeff) or self.impact_coeff < 0:
+            raise ValueError("impact_coeff must be non-negative and finite")
+
     def estimate_cost(self, order_notional: float, adv: Optional[float] = None) -> float:
         if order_notional <= 0:
             return 0.0

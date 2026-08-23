@@ -22,6 +22,8 @@ def add_riskoptima_signature(target, x: float = 0.995, y: float = -0.12, fontsiz
     Add the RiskOptima version signature to a Matplotlib Axes or Figure.
     """
     signature = riskoptima_signature()
+    if any(getattr(text, "get_text", lambda: "")() == signature for text in getattr(target, "texts", ())):
+        return target
     if hasattr(target, "transAxes"):
         target.text(x, y, signature, fontsize=fontsize, color="gray", alpha=alpha, transform=target.transAxes, ha="right")
         return target

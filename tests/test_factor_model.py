@@ -34,6 +34,26 @@ class TestFactorRiskModel(unittest.TestCase):
         self.assertEqual(cov.shape, (3, 3))
         self.assertTrue((np.diag(cov.values) > 0).all())
 
+    def test_fit_drops_incomplete_rows_per_asset(self):
+        rng = np.random.default_rng(7)
+        dates = pd.date_range("2024-01-01", periods=60, freq="B")
+        factors = pd.DataFrame(
+            rng.normal(0.0, 0.01, size=(60, 2)),
+            index=dates,
+            columns=["MKT", "VALUE"],
+        )
+        assets = pd.DataFrame(
+            rng.normal(0.0, 0.015, size=(60, 2)),
+            index=dates,
+            columns=["A", "B"],
+        )
+        factors.iloc[3, 0] = np.nan
+        assets.iloc[8, 1] = np.inf
+
+        model = FactorRiskModel(factor_returns=factors).fit(assets)
+        self.assertTrue(np.isfinite(model.exposures.to_numpy()).all())
+        self.assertTrue(np.isfinite(model.covariance_matrix().to_numpy()).all())
+
 
 if __name__ == "__main__":
     unittest.main()

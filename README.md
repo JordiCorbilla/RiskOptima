@@ -27,8 +27,12 @@ https://pypistats.org/packages/riskoptima
 - Quant Models: Black-Litterman, stochastic volatility models, and options/Greeks analytics.
 - Portfolio Projects: algorithmic trading/backtesting, portfolio optimization, market risk dashboard, option pricing engine, and credit risk model workflows.
 
-## What's New
+## What's New in 2.7.1
 
+- Reliability hardening for backtest transaction-cost accounting, monthly/weekly rebalancing, lagged SMA signals, finite input validation, implied-volatility bounds, and NaN-safe factor fitting.
+- Packaged deterministic samples through `load_sample_market_returns()` and `load_sample_credit_portfolio()`.
+- Idempotent chart branding prevents duplicate RiskOptima signatures in composed figures.
+- Expanded regression, chart, package-build, notebook, and RiskOptima Platform compatibility checks.
 - Institutional interest-rate term structures: dated SOFR deposits, FOMC intervals, futures and OIS swaps; separate projection curves; calibration Jacobians; key-rate DV01; JSON-safe payloads; and branded curve charts.
 - Professional options analytics: `OptionContract`, `OptionBook`, option book valuation, Greek aggregation, scenario grids, implied-vol surfaces, and event straddle analysis.
 - Hardened optimizer constraints: optional `OptimizationResult`, leverage limits, turnover limits, factor bounds, sector bounds, asset-class bounds, and covariance helpers.
@@ -48,6 +52,7 @@ https://pypistats.org/packages/riskoptima
 | Credit Risk Model | `08-credit_risk_model_demo.ipynb` | `riskoptima.credit` | ![Credit risk model](docs/assets/credit_risk_model.png) |
 
 See `docs/quant_project_map.md` for a recruiter/interviewer-friendly walkthrough of the five projects.
+The screenshots are deterministic and can be regenerated with `python docs/generate_assets.py`.
 
 ## Installation
 
@@ -56,7 +61,40 @@ See the project here: https://pypi.org/project/riskoptima/
 ```
 pip install riskoptima
 ```
+
+Verify that the interpreter and installed distribution refer to the same release:
+
+```python
+import riskoptima
+
+print(riskoptima.__version__)
+print(riskoptima.__file__)
+```
+
 ## Usage
+
+### Five-minute deterministic start
+
+The packaged samples make the main workflows runnable without API keys or network access:
+
+```python
+from riskoptima import load_sample_credit_portfolio, load_sample_market_returns
+from riskoptima.credit import portfolio_expected_loss
+from riskoptima.reporting import build_market_risk_report
+
+returns = load_sample_market_returns()
+risk_report = build_market_risk_report(
+    returns,
+    weights=[0.35, 0.30, 0.20, 0.15],
+)
+
+credit_portfolio = load_sample_credit_portfolio()
+print(risk_report.metrics["annualized_volatility"])
+print(risk_report.metrics["historical_var"][0.99])
+print(portfolio_expected_loss(credit_portfolio))
+```
+
+The modular packages under `riskoptima.backtest`, `riskoptima.optim`, `riskoptima.reporting`, `riskoptima.options`, `riskoptima.credit`, `riskoptima.volatility`, and `riskoptima.rates` are recommended for new integrations. The `RiskOptima` class remains available for backward compatibility with existing notebooks and applications.
 
 ### New modular API (backtest + factor risk + constraints)
 
@@ -113,12 +151,12 @@ The notebook `05-portfolio_sma_strategy.ipynb` shows single-asset, equal-weight 
 
 ### Offline sample datasets
 
-RiskOptima includes small synthetic datasets for deterministic examples:
+RiskOptima includes small synthetic datasets in the wheel and repository for deterministic examples:
 
 - `data/synthetic_market_returns.csv`
 - `data/synthetic_credit_portfolio.csv`
 
-These are intentionally small and have no external data dependency.
+Load them through `load_sample_market_returns()` and `load_sample_credit_portfolio()` so code works from both a cloned repository and an installed wheel. The market sample contains two years of deterministic, correlated business-day returns; neither dataset has an external data dependency.
 
 ### Interest-Rate Curves
 
@@ -181,7 +219,7 @@ See `08-credit_risk_model_demo.ipynb` for an end-to-end notebook.
 
 RiskOptima can build a dashboard-ready market risk report with annualized return, volatility, Sharpe, Sortino, drawdown, historical VaR, Gaussian VaR, CVaR/expected shortfall, beta, tracking error, information ratio, rolling volatility, and rolling drawdown.
 
-Screenshot placeholder: `plots/market_risk_dashboard.png`
+![Market Risk Dashboard](docs/assets/market_risk_dashboard.png)
 
 ```python
 import pandas as pd
@@ -351,6 +389,42 @@ print(implied_volatility(10.45, 100, 100, 1.0, 0.05))
 ```
 
 See `12-volatility_toolkit_demo.ipynb` for a reproducible notebook.
+
+## Notebooks
+
+Run notebooks from the repository root so local sample paths and the checkout resolve consistently. Notebooks `01`, `04`, and `08` through `13` are deterministic. Notebooks `02`, `03`, `05`, `06`, and `07` demonstrate live Yahoo Finance workflows and therefore require network access and may be affected by upstream data availability.
+
+Notebook setup cells do not upgrade RiskOptima automatically. In a fresh environment, install the desired release before opening Jupyter:
+
+```bash
+python -m pip install "riskoptima==2.7.1" jupyter
+python -m jupyter lab
+```
+
+For repository development, install the checkout in editable mode so examples,
+tests, notebooks, and package metadata all resolve to the same source tree:
+
+```bash
+python -m pip install -e .
+python -m pytest
+python examples/example_factor_backtest.py
+```
+
+## RiskOptima Platform Integration
+
+RiskOptima Platform should install the same package release that it reports in diagnostics. Avoid combining a local source checkout with metadata from a different installed distribution. For local platform development, use an editable install or the platform's `RISKOPTIMA_PLATFORM_RISKOPTIMA_PATH` override and read the runtime version from `riskoptima.__version__`.
+
+Platform-safe objects expose JSON-compatible payloads. For example:
+
+```python
+import json
+from riskoptima.rates import DiscountCurve
+
+curve = DiscountCurve.from_zero_rates([1.0, 2.0, 5.0], [0.04, 0.038, 0.035])
+payload = curve.to_dict()
+json.dumps(payload)  # safe for API responses and generated-run caches
+restored = DiscountCurve.from_dict(payload)
+```
 
 ### Example 1: Setting up your portfolio
 

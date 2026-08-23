@@ -6,7 +6,6 @@
 # Description: Market risk dashboard example
 ###############################################################################
 
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -21,6 +20,8 @@ from riskoptima.reporting import (
     plot_rolling_volatility,
     plot_var_cvar_distribution,
 )
+from riskoptima.branding import add_riskoptima_signature
+from riskoptima.data import load_sample_market_returns
 
 
 def _sample_returns():
@@ -39,12 +40,8 @@ def _sample_returns():
     except Exception:
         pass
 
-    rng = np.random.default_rng(42)
-    dates = pd.date_range("2024-01-01", periods=504, freq="B")
-    return pd.DataFrame(
-        rng.normal([0.0004, 0.0005, 0.0001, 0.0002], [0.011, 0.014, 0.008, 0.010], size=(504, 4)),
-        index=dates,
-        columns=["SPY", "QQQ", "TLT", "GLD"],
+    return load_sample_market_returns().rename(
+        columns={"Equity": "SPY", "Quality": "QQQ", "Duration": "TLT", "Gold": "GLD"}
     )
 
 
@@ -62,10 +59,11 @@ if __name__ == "__main__":
 
     portfolio_returns = metrics["portfolio_returns"]
     fig, axes = plt.subplots(2, 2, figsize=(14, 9))
-    plot_drawdown_curve(portfolio_returns, ax=axes[0, 0])
-    plot_rolling_volatility(portfolio_returns, ax=axes[0, 1])
-    plot_var_cvar_distribution(portfolio_returns, confidence=0.99, ax=axes[1, 0])
-    plot_correlation_heatmap(returns, ax=axes[1, 1])
+    plot_drawdown_curve(portfolio_returns, ax=axes[0, 0], add_signature=False)
+    plot_rolling_volatility(portfolio_returns, ax=axes[0, 1], add_signature=False)
+    plot_var_cvar_distribution(portfolio_returns, confidence=0.99, ax=axes[1, 0], add_signature=False)
+    plot_correlation_heatmap(returns, ax=axes[1, 1], add_signature=False)
     fig.suptitle("RiskOptima Market Risk Dashboard")
-    fig.tight_layout()
+    add_riskoptima_signature(fig, y=0.01)
+    fig.tight_layout(rect=(0, 0.03, 1, 0.96))
     plt.show()

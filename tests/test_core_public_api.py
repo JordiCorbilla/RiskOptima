@@ -39,6 +39,8 @@ class TestCorePublicApi(unittest.TestCase):
             "historical_volatility",
             "realized_volatility",
             "ewma_volatility",
+            "load_sample_market_returns",
+            "load_sample_credit_portfolio",
         ]
         for name in expected_exports:
             self.assertTrue(hasattr(riskoptima, name), name)

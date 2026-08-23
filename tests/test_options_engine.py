@@ -60,6 +60,27 @@ class TestOptionsEngine(unittest.TestCase):
             binomial_tree_price(100, -100, 1, 0.05, 0.2)
         with self.assertRaises(ValueError):
             binomial_tree_price(100, 100, 1, 0.05, -0.2)
+        with self.assertRaises(ValueError):
+            monte_carlo_european_option(100, 100, -1, 0.05, 0.2)
+        with self.assertRaises(ValueError):
+            monte_carlo_european_option(100, 100, 1, 0.05, -0.2)
+        with self.assertRaises(ValueError):
+            black_scholes_price(np.inf, 100, 1, 0.05, 0.2)
+        with self.assertRaises(ValueError):
+            black_scholes_greeks(100, 100, 1, np.nan, 0.2)
+        with self.assertRaises(ValueError):
+            binomial_tree_price(100, 100, 1, 0.05, 0.2, steps=10.5)
+
+        self.assertEqual(
+            monte_carlo_european_option(105, 100, 0, 0.05, 0.2, option_type="call"),
+            5.0,
+        )
+
+    def test_implied_volatility_rejects_impossible_or_unbracketed_prices(self):
+        with self.assertRaises(ValueError):
+            implied_volatility(200, 100, 100, 1.0, 0.05, option_type="call")
+        with self.assertRaises(ValueError):
+            implied_volatility(10, 100, 100, 0.0, 0.05, option_type="call")
 
 
 if __name__ == "__main__":

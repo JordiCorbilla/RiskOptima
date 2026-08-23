@@ -60,6 +60,23 @@ class TestMarketRiskReport(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_market_risk_report(returns, weights=[1.0, np.nan])
 
+    def test_non_finite_returns_are_removed_and_invalid_simple_returns_rejected(self):
+        report = build_market_risk_report(pd.Series([0.01, np.inf, -0.02, 0.005]))
+        self.assertTrue(np.isfinite(report.metrics["annualized_volatility"]))
+        self.assertEqual(len(report.metrics["portfolio_returns"]), 3)
+
+        with self.assertRaises(ValueError):
+            build_market_risk_report(pd.Series([0.01, -1.01]))
+
+    def test_tracking_error_is_available_for_constant_benchmark(self):
+        returns = pd.Series([0.01, -0.01, 0.02, -0.005])
+        benchmark = pd.Series([0.0, 0.0, 0.0, 0.0])
+        report = build_market_risk_report(returns, benchmark_returns=benchmark)
+
+        self.assertTrue(np.isnan(report.metrics["beta"]))
+        self.assertGreater(report.metrics["tracking_error"], 0.0)
+        self.assertTrue(np.isfinite(report.metrics["information_ratio"]))
+
 
 if __name__ == "__main__":
     unittest.main()

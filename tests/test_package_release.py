@@ -20,7 +20,7 @@ from riskoptima.rates import DiscountCurve, price_fixed_rate_bond
 def test_package_versions_have_one_runtime_source():
     metadata = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert riskoptima.__version__ == "2.7.0"
+    assert riskoptima.__version__ == "2.7.1"
     assert RiskOptima.VERSION == riskoptima.__version__
     assert metadata["tool"]["poetry"]["version"] == riskoptima.__version__
 
@@ -32,4 +32,3 @@ def test_curve_prices_fixed_rate_bond_cash_flows():
     expected = float(np.dot(cash_flows, np.exp(-0.04 * payment_times)))
 
     assert price_fixed_rate_bond(curve, 2.0, 0.05, face_value=100, payment_frequency=2) == pytest.approx(expected)
-

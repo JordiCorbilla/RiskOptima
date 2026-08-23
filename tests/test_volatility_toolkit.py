@@ -78,6 +78,8 @@ class TestVolatilityToolkit(unittest.TestCase):
             ewma_volatility(self.returns, lambda_=1.5)
         with self.assertRaises(ValueError):
             parkinson_volatility(pd.DataFrame({"Open": [1.0]}))
+        with self.assertRaises(ValueError):
+            yang_zhang_volatility(self.ohlc.iloc[:2])
 
     def test_public_exports_importable(self):
         self.assertTrue(hasattr(riskoptima, "historical_volatility"))

@@ -64,8 +64,8 @@ def rogers_satchell_volatility(ohlc, periods_per_year: int = 252) -> float:
 def yang_zhang_volatility(ohlc, periods_per_year: int = 252) -> float:
     """Annualized Yang-Zhang volatility estimator."""
     data = _ohlc_frame(ohlc)
-    if len(data) < 2:
-        raise ValueError("Yang-Zhang volatility requires at least two OHLC rows")
+    if len(data) < 3:
+        raise ValueError("Yang-Zhang volatility requires at least three OHLC rows")
     open_close = np.log(data["close"] / data["open"])
     overnight = np.log(data["open"] / data["close"].shift(1)).dropna()
     rs_terms = (

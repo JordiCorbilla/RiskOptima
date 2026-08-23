@@ -20,10 +20,13 @@ from .strategy import Strategy
 
 
 def _should_rebalance(date: pd.Timestamp, rule: str, last_reb_date: Optional[pd.Timestamp]) -> bool:
-    if rule == "D":
+    normalized_rule = str(rule).upper()
+    if normalized_rule == "D":
         return True
-    if rule == "M":
-        return date.is_month_end
+    if normalized_rule == "M":
+        return last_reb_date is None or date.to_period("M") != last_reb_date.to_period("M")
+    if normalized_rule == "W":
+        return last_reb_date is None or date.to_period("W") != last_reb_date.to_period("W")
     if last_reb_date is None:
         return True
     return False
@@ -41,11 +44,23 @@ def run_backtest(
     if cost_model is None:
         cost_model = SimpleCostModel()
 
-    data = prices.copy().sort_index()
+    if not isinstance(prices, pd.DataFrame) or prices.empty:
+        raise ValueError("prices must be a non-empty pandas DataFrame")
+    if not np.isfinite(config.initial_cash) or config.initial_cash <= 0:
+        raise ValueError("initial_cash must be positive and finite")
+    if not np.isfinite(config.slippage_bps) or config.slippage_bps < 0:
+        raise ValueError("slippage_bps must be non-negative and finite")
+
+    data = prices.copy().sort_index().apply(pd.to_numeric, errors="coerce")
+    data = data.replace([np.inf, -np.inf], np.nan).ffill()
     if config.start is not None:
         data = data[data.index >= config.start]
     if config.end is not None:
         data = data[data.index <= config.end]
+    if data.dropna(how="all").empty:
+        raise ValueError("prices must contain at least one finite observation in the requested period")
+    if (data < 0).any().any() or (data == 0).any().any():
+        raise ValueError("prices must be strictly positive")
 
     assets = data.columns
     positions = pd.Series(0.0, index=assets)
@@ -61,7 +76,6 @@ def run_backtest(
             continue
 
         port_value = state.value(price_row)
-        weights = pd.Series(0.0, index=assets)
         costs = 0.0
         turnover = 0.0
 
@@ -81,7 +95,7 @@ def run_backtest(
 
             for asset, notional in order_notional.items():
                 adv_value = None
-                if adv is not None and asset in adv.columns:
+                if adv is not None and asset in adv.columns and date in adv.index:
                     adv_value = adv.loc[date, asset]
                 costs += cost_model.estimate_cost(float(notional), adv=adv_value)
 
@@ -93,7 +107,9 @@ def run_backtest(
             state.positions = target_shares
             last_reb_date = date
 
-            weights = target_weights
+        port_value = state.value(price_row)
+        asset_values = state.positions * price_row.reindex(assets).fillna(0.0)
+        weights = asset_values / port_value if port_value != 0 else pd.Series(0.0, index=assets)
 
         equity_rows.append(
             {

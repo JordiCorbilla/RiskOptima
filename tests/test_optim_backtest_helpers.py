@@ -57,6 +57,13 @@ class TestOptimBacktestHelpers(unittest.TestCase):
         self.assertAlmostEqual(float(early_weights.sum()), 0.0)
         self.assertAlmostEqual(float(later_weights.sum()), 1.0)
 
+    def test_sma_strategy_rejects_invalid_windows(self):
+        dates = pd.date_range("2024-01-01", periods=5, freq="B")
+        prices = pd.DataFrame({"A": [100, 101, 102, 103, 104]}, index=dates)
+
+        with self.assertRaises(ValueError):
+            SMACrossStrategy(short_window=5, long_window=5).generate_target_weights(dates[-1], prices)
+
 
 if __name__ == "__main__":
     unittest.main()

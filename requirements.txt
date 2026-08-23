@@ -1,4 +1,4 @@
-python=3.11
+# RiskOptima requires Python 3.11 or newer.
 numpy>=1.26.4
 pandas>=2.1.4
 scipy>=1.13.1

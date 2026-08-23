@@ -26,10 +26,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install .
-          python -m pip install pytest "mypy>=1.10,<2"
+          python -m pip install pytest build "mypy>=1.10,<2"
 
       - name: Run type checks
         run: python -m mypy --python-version "${{ matrix.python-version }}" riskoptima
 
       - name: Run tests
         run: pytest -q tests
+
+      - name: Build distribution artifacts
+        run: python -m build

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from riskoptima.data import load_sample_credit_portfolio, load_sample_market_returns
 from riskoptima.credit import portfolio_expected_loss
 from riskoptima.reporting import build_market_risk_report
 
@@ -24,6 +25,7 @@ class TestSyntheticDataExamples(unittest.TestCase):
         report = build_market_risk_report(returns, weights=[0.35, 0.30, 0.20, 0.15])
 
         self.assertFalse(returns.empty)
+        self.assertGreaterEqual(len(returns), 252)
         self.assertIn("annualized_volatility", report.metrics)
         self.assertIn(0.99, report.metrics["historical_var"])
 
@@ -31,7 +33,16 @@ class TestSyntheticDataExamples(unittest.TestCase):
         portfolio = pd.read_csv(ROOT / "data" / "synthetic_credit_portfolio.csv")
         self.assertGreater(portfolio_expected_loss(portfolio), 0.0)
 
+    def test_packaged_sample_loaders_match_repository_samples(self):
+        market = load_sample_market_returns()
+        credit = load_sample_credit_portfolio()
+
+        self.assertIsInstance(market.index, pd.DatetimeIndex)
+        self.assertGreaterEqual(len(market), 252)
+        self.assertEqual(list(market.columns), ["Equity", "Quality", "Duration", "Gold"])
+        self.assertEqual(list(credit.columns), ["obligor", "rating", "PD", "LGD", "EAD"])
+        self.assertGreater(portfolio_expected_loss(credit), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
-

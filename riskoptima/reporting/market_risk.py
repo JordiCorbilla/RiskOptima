@@ -41,7 +41,7 @@ def _validated_weights(weights, columns) -> pd.Series:
 
 def _portfolio_returns(returns, weights=None) -> pd.Series:
     data = pd.DataFrame(returns).copy() if not isinstance(returns, pd.Series) else returns.to_frame("portfolio")
-    data = data.apply(pd.to_numeric, errors="coerce").dropna(how="all")
+    data = data.apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan).dropna(how="all")
 
     if isinstance(returns, pd.Series) or data.shape[1] == 1:
         return data.iloc[:, 0].dropna().rename("portfolio")
@@ -79,12 +79,23 @@ def build_market_risk_report(
     portfolio = _portfolio_returns(returns, weights=weights)
     if portfolio.empty:
         raise ValueError("returns must contain at least one finite observation")
+    if periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive")
+    if rolling_window <= 0:
+        raise ValueError("rolling_window must be positive")
+    if not np.isfinite(risk_free_rate) or risk_free_rate <= -1:
+        raise ValueError("risk_free_rate must be finite and greater than -1")
+    if (portfolio < -1).any():
+        raise ValueError("simple returns cannot be less than -100%")
 
     rf_per_period = (1.0 + risk_free_rate) ** (1.0 / periods_per_year) - 1.0
     excess = portfolio - rf_per_period
-    annualized_return = float((1.0 + portfolio).prod() ** (periods_per_year / len(portfolio)) - 1.0)
+    terminal_wealth = float((1.0 + portfolio).prod())
+    annualized_return = -1.0 if terminal_wealth == 0 else float(
+        terminal_wealth ** (periods_per_year / len(portfolio)) - 1.0
+    )
     annualized_volatility = historical_volatility(portfolio, periods_per_year=periods_per_year)
-    downside = portfolio[portfolio < 0].std(ddof=0) * np.sqrt(periods_per_year)
+    downside = float(np.sqrt(np.mean(np.square(np.minimum(excess.to_numpy(dtype=float), 0.0)))) * np.sqrt(periods_per_year))
     sharpe = float((excess.mean() * periods_per_year) / annualized_volatility) if annualized_volatility else np.nan
     sortino = float((excess.mean() * periods_per_year) / downside) if downside and not np.isnan(downside) else np.nan
 
@@ -105,11 +116,18 @@ def build_market_risk_report(
     tracking_error = np.nan
     information_ratio = np.nan
     if benchmark_returns is not None:
-        benchmark = pd.Series(benchmark_returns, dtype=float).dropna().rename("benchmark")
+        benchmark = (
+            pd.Series(benchmark_returns, dtype=float)
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+            .rename("benchmark")
+        )
         aligned = pd.concat([portfolio, benchmark], axis=1).dropna()
-        if not aligned.empty and aligned["benchmark"].var(ddof=0) > 0:
-            cov = np.cov(aligned["portfolio"], aligned["benchmark"], ddof=0)[0, 1]
-            beta = float(cov / aligned["benchmark"].var(ddof=0))
+        if not aligned.empty:
+            benchmark_variance = aligned["benchmark"].var(ddof=0)
+            if benchmark_variance > 0:
+                cov = np.cov(aligned["portfolio"], aligned["benchmark"], ddof=0)[0, 1]
+                beta = float(cov / benchmark_variance)
             active = aligned["portfolio"] - aligned["benchmark"]
             tracking_error = float(active.std(ddof=0) * np.sqrt(periods_per_year))
             information_ratio = (
@@ -142,7 +160,7 @@ def build_market_risk_report(
     )
 
 
-def plot_drawdown_curve(returns, ax=None, **kwargs):
+def plot_drawdown_curve(returns, ax=None, add_signature=True, **kwargs):
     import matplotlib.pyplot as plt
 
     series = _portfolio_returns(returns)
@@ -151,11 +169,12 @@ def plot_drawdown_curve(returns, ax=None, **kwargs):
     drawdown.plot(ax=ax, **kwargs)
     ax.set_title("Drawdown")
     ax.set_ylabel("Drawdown")
-    add_riskoptima_signature(ax)
+    if add_signature:
+        add_riskoptima_signature(ax)
     return ax
 
 
-def plot_rolling_volatility(returns, window=21, periods_per_year=252, ax=None, **kwargs):
+def plot_rolling_volatility(returns, window=21, periods_per_year=252, ax=None, add_signature=True, **kwargs):
     import matplotlib.pyplot as plt
 
     series = _portfolio_returns(returns)
@@ -164,11 +183,12 @@ def plot_rolling_volatility(returns, window=21, periods_per_year=252, ax=None, *
     rolling_vol.plot(ax=ax, **kwargs)
     ax.set_title("Rolling Volatility")
     ax.set_ylabel("Annualized Volatility")
-    add_riskoptima_signature(ax)
+    if add_signature:
+        add_riskoptima_signature(ax)
     return ax
 
 
-def plot_var_cvar_distribution(returns, confidence=0.99, ax=None, bins=40, **kwargs):
+def plot_var_cvar_distribution(returns, confidence=0.99, ax=None, bins=40, add_signature=True, **kwargs):
     import matplotlib.pyplot as plt
 
     series = _portfolio_returns(returns)
@@ -181,11 +201,12 @@ def plot_var_cvar_distribution(returns, confidence=0.99, ax=None, bins=40, **kwa
     ax.axvline(cvar, color="black", linestyle="-", label=f"CVaR {confidence:.0%}")
     ax.set_title("Loss Distribution")
     ax.legend()
-    add_riskoptima_signature(ax)
+    if add_signature:
+        add_riskoptima_signature(ax)
     return ax
 
 
-def plot_correlation_heatmap(returns, ax=None, **kwargs):
+def plot_correlation_heatmap(returns, ax=None, add_signature=True, **kwargs):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
@@ -194,5 +215,6 @@ def plot_correlation_heatmap(returns, ax=None, **kwargs):
     ax = ax or plt.gca()
     sns.heatmap(corr, annot=True, cmap="coolwarm", center=0, ax=ax, **kwargs)
     ax.set_title("Correlation Heatmap")
-    add_riskoptima_signature(ax)
+    if add_signature:
+        add_riskoptima_signature(ax)
     return ax

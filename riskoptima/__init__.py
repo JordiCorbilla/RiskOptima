@@ -11,7 +11,7 @@
 #----------------------------------------------------------------------------
 # Created By  : Jordi Corbilla
 # Created Date: 2025
-# version ='2.7.0'
+# version ='2.7.1'
 # ---------------------------------------------------------------------------
 
 from ._version import __version__
@@ -40,6 +40,7 @@ from .volatility import (
     realized_volatility,
     rolling_volatility,
 )
+from .data import load_sample_credit_portfolio, load_sample_market_returns
 
 from .rates import (
     BusinessCalendar,
@@ -90,6 +91,8 @@ __all__ = [
     "rolling_volatility",
     "realized_volatility",
     "ewma_volatility",
+    "load_sample_market_returns",
+    "load_sample_credit_portfolio",
     "DiscountCurve",
     "BusinessCalendar",
     "MultiCurveSet",

@@ -25,7 +25,13 @@ class SMACrossStrategy(Strategy):
     long_window: int = 50
 
     def generate_target_weights(self, date, prices: pd.DataFrame, state=None) -> pd.Series:
-        hist = prices.loc[:date]
+        if self.short_window <= 0 or self.long_window <= 0:
+            raise ValueError("SMA windows must be positive")
+        if self.short_window >= self.long_window:
+            raise ValueError("short_window must be smaller than long_window")
+
+        # Signals use information available before the execution bar.
+        hist = prices.loc[prices.index < date]
         if hist.shape[0] < self.long_window:
             return pd.Series(0.0, index=prices.columns)
 

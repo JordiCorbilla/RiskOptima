@@ -14,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from riskoptima.branding import add_riskoptima_signature
+from riskoptima.data import load_sample_market_returns
 from riskoptima.reporting import (
     build_market_risk_report,
     plot_correlation_heatmap,
@@ -21,10 +23,6 @@ from riskoptima.reporting import (
     plot_rolling_volatility,
     plot_var_cvar_distribution,
 )
-
-
-DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "synthetic_market_returns.csv"
-
 
 def _load_streamlit():
     try:
@@ -46,7 +44,7 @@ def main():
     if uploaded is not None:
         returns = pd.read_csv(uploaded, index_col=0, parse_dates=True)
     else:
-        returns = pd.read_csv(DATA_PATH, index_col=0, parse_dates=True)
+        returns = load_sample_market_returns()
 
     st.sidebar.caption("Weights are normalized automatically.")
     weights = []
@@ -70,14 +68,14 @@ def main():
 
     portfolio_returns = metrics["portfolio_returns"]
     fig, axes = plt.subplots(2, 2, figsize=(14, 8))
-    plot_drawdown_curve(portfolio_returns, ax=axes[0, 0])
-    plot_rolling_volatility(portfolio_returns, ax=axes[0, 1])
-    plot_var_cvar_distribution(portfolio_returns, confidence=0.95, ax=axes[1, 0])
-    plot_correlation_heatmap(returns, ax=axes[1, 1])
-    fig.tight_layout()
+    plot_drawdown_curve(portfolio_returns, ax=axes[0, 0], add_signature=False)
+    plot_rolling_volatility(portfolio_returns, ax=axes[0, 1], add_signature=False)
+    plot_var_cvar_distribution(portfolio_returns, confidence=0.95, ax=axes[1, 0], add_signature=False)
+    plot_correlation_heatmap(returns, ax=axes[1, 1], add_signature=False)
+    add_riskoptima_signature(fig, y=0.01)
+    fig.tight_layout(rect=(0, 0.03, 1, 1))
     st.pyplot(fig)
 
 
 if __name__ == "__main__":
     main()
-

@@ -22,10 +22,17 @@ def validate_transition_matrix(matrix):
     if mat.shape[0] != mat.shape[1]:
         raise ValueError("transition matrix must be square")
     values = mat.to_numpy(dtype=float)
+    if not np.isfinite(values).all():
+        raise ValueError("transition probabilities must be finite")
     if np.any(values < 0):
         raise ValueError("transition probabilities cannot be negative")
     if not np.allclose(values.sum(axis=1), 1.0, atol=1e-8):
         raise ValueError("transition matrix rows must sum to 1")
+    if isinstance(matrix, pd.DataFrame):
+        if not matrix.index.is_unique or not matrix.columns.is_unique:
+            raise ValueError("transition matrix rating labels must be unique")
+        if set(matrix.index) != set(matrix.columns):
+            raise ValueError("transition matrix index and columns must contain the same ratings")
     return True
 
 
@@ -84,6 +91,8 @@ def simulate_credit_losses(portfolio_df, n_sims=10000, random_state=None):
         raise ValueError("n_sims must be positive")
     if not isinstance(portfolio_df, pd.DataFrame):
         raise TypeError("portfolio_df must be a pandas DataFrame")
+    if portfolio_df.empty:
+        raise ValueError("portfolio_df must contain at least one obligor")
 
     pd_col = _column(portfolio_df, "pd", "probability_of_default")
     lgd_col = _column(portfolio_df, "lgd", "loss_given_default")
@@ -93,6 +102,8 @@ def simulate_credit_losses(portfolio_df, n_sims=10000, random_state=None):
     lgd_values = portfolio_df[lgd_col].astype(float).to_numpy()
     ead_values = portfolio_df[ead_col].astype(float).to_numpy()
 
+    if not (np.isfinite(pd_values).all() and np.isfinite(lgd_values).all() and np.isfinite(ead_values).all()):
+        raise ValueError("PD, LGD, and EAD values must be finite")
     if np.any((pd_values < 0) | (pd_values > 1)):
         raise ValueError("PD values must be between 0 and 1")
     if np.any((lgd_values < 0) | (lgd_values > 1)):

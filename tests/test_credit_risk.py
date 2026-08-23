@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from riskoptima.credit import (
+    credit_cvar,
     credit_var,
     expected_loss,
     merton_pd,
@@ -63,6 +64,26 @@ class TestCreditRisk(unittest.TestCase):
         self.assertGreater(high_leverage_pd, low_leverage_pd)
         self.assertGreaterEqual(low_leverage_pd, 0.0)
         self.assertLessEqual(high_leverage_pd, 1.0)
+
+    def test_credit_inputs_reject_invalid_or_non_finite_values(self):
+        with self.assertRaises(ValueError):
+            expected_loss(-0.01, 0.4, 100)
+        with self.assertRaises(ValueError):
+            expected_loss(0.01, 1.1, 100)
+        with self.assertRaises(ValueError):
+            simulate_credit_losses(pd.DataFrame(columns=["PD", "LGD", "EAD"]))
+
+        self.assertEqual(credit_var([0.0, 10.0, np.inf], confidence=0.5), 5.0)
+        self.assertEqual(credit_cvar([0.0, 10.0, np.inf], confidence=0.5), 10.0)
+
+    def test_transition_matrix_rejects_duplicate_labels(self):
+        matrix = pd.DataFrame(
+            [[0.9, 0.1], [0.2, 0.8]],
+            index=["A", "A"],
+            columns=["A", "D"],
+        )
+        with self.assertRaises(ValueError):
+            validate_transition_matrix(matrix)
 
 
 if __name__ == "__main__":
