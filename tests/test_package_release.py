@@ -20,7 +20,7 @@ from riskoptima.rates import DiscountCurve, price_fixed_rate_bond
 def test_package_versions_have_one_runtime_source():
     metadata = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert riskoptima.__version__ == "2.7.1"
+    assert riskoptima.__version__ == "2.8.0"
     assert RiskOptima.VERSION == riskoptima.__version__
     assert metadata["tool"]["poetry"]["version"] == riskoptima.__version__
 

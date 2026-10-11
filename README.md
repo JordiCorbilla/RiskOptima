@@ -26,6 +26,15 @@ https://pypistats.org/packages/riskoptima
 - Market & Allocation Visuals: Correlation matrices, portfolio area charts, and diagnostics.
 - Quant Models: Black-Litterman, stochastic volatility models, and options/Greeks analytics.
 - Portfolio Projects: algorithmic trading/backtesting, portfolio optimization, market risk dashboard, option pricing engine, and credit risk model workflows.
+- Dislocation Research: equity quality/valuation scoring, simplified FCF-proxy scenarios, fund price/regime analysis, and Markdown reports.
+
+## What's New in 2.8.0
+
+- New `riskoptima.dislocation` API with injectable data providers, resilient universe scans, structured platform payloads, and versioned Markdown reports.
+- Correct margin-of-safety and separate upside metrics; non-positive valuation multiples are not rewarded as cheap.
+- Validated model assumptions, finite-data coverage scoring, and explicit FCF-proxy/forecast limitations.
+- Runnable live and synthetic examples plus `14-dislocation_model_demo.ipynb`, including active equity analysis and corrected Yahoo fund identifiers.
+- Existing `RiskOptima` imports and class APIs remain available. `expected_annualized_return` is retained as a compatibility alias for hypothetical annualized convergence, not an investment-return forecast.
 
 ## What's New in 2.7.1
 
@@ -94,7 +103,34 @@ print(risk_report.metrics["historical_var"][0.99])
 print(portfolio_expected_loss(credit_portfolio))
 ```
 
-The modular packages under `riskoptima.backtest`, `riskoptima.optim`, `riskoptima.reporting`, `riskoptima.options`, `riskoptima.credit`, `riskoptima.volatility`, and `riskoptima.rates` are recommended for new integrations. The `RiskOptima` class remains available for backward compatibility with existing notebooks and applications.
+The modular packages under `riskoptima.backtest`, `riskoptima.optim`, `riskoptima.reporting`, `riskoptima.options`, `riskoptima.credit`, `riskoptima.volatility`, `riskoptima.rates`, and `riskoptima.dislocation` are recommended for new integrations. The `RiskOptima` class remains available for backward compatibility with existing notebooks and applications.
+
+### Quality, Valuation and Dislocation Research
+
+Analyze daily prices and metadata offline, or inject a live data provider. Funds receive historical price/regime analysis, not a corporate DCF or a NAV premium/discount calculation.
+
+```python
+from riskoptima import load_sample_market_returns
+from riskoptima.dislocation import (
+    DislocationConfig, MarketSnapshot, analyze_snapshot, generate_markdown_report,
+)
+
+returns = load_sample_market_returns()["Equity"]
+history = (100 * (1 + returns).cumprod()).to_frame("Close")
+snapshot = MarketSnapshot(
+    symbol="SYNTHETIC", history=history,
+    info={"quoteType": "EQUITY", "currency": "USD",
+          "freeCashflow": 20_000_000, "sharesOutstanding": 1_000_000,
+          "revenueGrowth": 0.04, "forwardPE": 18},
+)
+analysis = analyze_snapshot(snapshot, config=DislocationConfig(use_markov_regime=False))
+print(generate_markdown_report(analysis))
+payload = analysis.as_dict()  # JSON-safe report fields and riskoptima_version
+```
+
+Run `python examples/example_dislocation_model.py` for synthetic data, or append `--live` for Yahoo Finance. Notebook `14-dislocation_model_demo.ipynb` scans eleven funds and analyzes MSFT; set `RISKOPTIMA_DEMO_LIVE=0` for its synthetic mode.
+
+`margin_of_safety = (model_value - price) / model_value`; `upside_to_model_value = model_value / price - 1`. The DCF is an unadjusted FCF-proxy scenario, **not reconciled FCFE**. `implied_annualized_return` assumes convergence to today's model value, excludes distributions, and is **not an expected-return forecast**. `confidence_score` measures data coverage, not statistical confidence. See [dislocation API and platform integration](docs/dislocation_model.md) for assumptions and field definitions.
 
 ### New modular API (backtest + factor risk + constraints)
 
@@ -392,12 +428,12 @@ See `12-volatility_toolkit_demo.ipynb` for a reproducible notebook.
 
 ## Notebooks
 
-Run notebooks from the repository root so local sample paths and the checkout resolve consistently. Notebooks `01`, `04`, and `08` through `13` are deterministic. Notebooks `02`, `03`, `05`, `06`, and `07` demonstrate live Yahoo Finance workflows and therefore require network access and may be affected by upstream data availability.
+Run notebooks from the repository root so local sample paths and the checkout resolve consistently. Notebooks `01`, `04`, and `08` through `13` are deterministic. Notebooks `02`, `03`, `05`, `06`, `07`, and `14` demonstrate live Yahoo Finance workflows and therefore require network access and may be affected by upstream data availability. Notebook `14` also supports explicitly synthetic offline execution with `RISKOPTIMA_DEMO_LIVE=0`.
 
 Notebook setup cells do not upgrade RiskOptima automatically. In a fresh environment, install the desired release before opening Jupyter:
 
 ```bash
-python -m pip install "riskoptima==2.7.1" jupyter
+python -m pip install "riskoptima==2.8.0" jupyter
 python -m jupyter lab
 ```
 
