@@ -147,11 +147,31 @@ def _normalize_history(history: pd.DataFrame, symbol: str) -> pd.DataFrame:
         raise ValueError(f"No price history returned for {symbol}")
     frame = history.copy()
     if isinstance(frame.columns, pd.MultiIndex):
-        frame.columns = frame.columns.get_level_values(-1)
-    close_column = next((c for c in ("Close", "Adj Close", "close", "adjclose") if c in frame.columns), None)
-    if close_column is None:
-        raise ValueError(f"Price history for {symbol} does not contain a Close column")
-    frame = frame.rename(columns={close_column: "Close"})
+        match = next(
+            (
+                (column, level)
+                for level in range(frame.columns.nlevels)
+                for column in ("Close", "Adj Close", "close", "adjclose")
+                if column in frame.columns.get_level_values(level)
+            ),
+            None,
+        )
+        if match is None:
+            raise ValueError(f"Price history for {symbol} does not contain a Close column")
+        close_column, level = match
+        close_data = frame.xs(close_column, axis=1, level=level)
+        if isinstance(close_data, pd.Series):
+            frame = close_data.to_frame(name="Close")
+        elif close_data.shape[1] == 1:
+            frame = close_data.copy()
+            frame.columns = ["Close"]
+        else:
+            raise ValueError(f"Price history for {symbol} contains multiple Close columns")
+    else:
+        close_column = next((c for c in ("Close", "Adj Close", "close", "adjclose") if c in frame.columns), None)
+        if close_column is None:
+            raise ValueError(f"Price history for {symbol} does not contain a Close column")
+        frame = frame.rename(columns={close_column: "Close"})
     frame["Close"] = pd.to_numeric(frame["Close"], errors="coerce")
     frame = frame.replace([np.inf, -np.inf], np.nan).dropna(subset=["Close"])
     frame = frame[frame["Close"] > 0].sort_index()
