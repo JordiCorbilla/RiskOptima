@@ -13,6 +13,7 @@ from riskoptima.dislocation import (
     analyze_snapshot,
     generate_markdown_report,
     scan_universe,
+    RESEARCH_DISCLAIMER,
 )
 
 
@@ -246,3 +247,52 @@ def test_unavailable_dcf_remains_null(cash_flow, shares):
     assert analysis.implied_annualized_return is None
     assert any("DCF unavailable" in d for d in analysis.diagnostics)
     json.dumps(analysis.as_dict(), allow_nan=False)
+
+
+@pytest.mark.parametrize("quote_type", ["MUTUALFUND", "ETF"])
+def test_fund_metadata_is_disclosed_without_corporate_dcf_or_score_change(quote_type):
+    base = {"quoteType": quote_type, "currency": "GBP"}
+    metadata = dict(base, category="US Equity", fundFamily="Example", totalAssets=21_000_000_000,
+                    yield_=0.0081, annualReportExpenseRatio=0.001, trailingPE=24.93, navPrice=100,
+                    freeCashflow=20, sharesOutstanding=1)
+    metadata["yield"] = metadata.pop("yield_")
+    config = DislocationConfig(use_markov_regime=False)
+    plain = analyze_snapshot(MarketSnapshot("FUND", _history(), base), config=config)
+    fund = analyze_snapshot(MarketSnapshot("FUND", _history(), metadata), config=config)
+    assert fund.opportunity_score == plain.opportunity_score
+    assert fund.intrinsic_value is None
+    assert fund.quality_score is None
+    assert fund.valuation_score is None
+    assert fund.metrics["fund_metadata_fields_available"] == 7
+    assert fund.metrics["fund_reported_pe"] == 24.93
+    assert fund.metrics["fund_total_assets"] == 21_000_000_000
+    markdown = generate_markdown_report(fund)
+    assert "Distribution yield | 0.8%" in markdown
+    assert "Fund metadata (provider-reported)" in markdown
+    assert "may hold equities" in markdown
+    assert "no NAV premium or discount is measured" in markdown
+    assert "matching date, units and share class are not verified" in markdown
+    assert "Corporate intrinsic valuation skipped for non-equity" not in markdown
+    assert fund.as_dict()["research_notice"] == RESEARCH_DISCLAIMER
+    json.dumps(fund.as_dict(), allow_nan=False)
+
+
+def test_invalid_and_missing_fund_metadata_stays_unavailable():
+    fund = analyze_snapshot(MarketSnapshot("FUND", _history(), {
+        "quoteType": "MUTUALFUND", "totalAssets": np.inf, "navPrice": -10,
+        "yield": 12.6, "annualReportExpenseRatio": np.nan, "trailingPE": 0,
+    }), config=DislocationConfig(use_markov_regime=False))
+    assert fund.metrics["fund_metadata_fields_available"] == 0
+    assert fund.metrics["fund_nav_price"] is None
+    assert "0/7 optional fields" in " ".join(fund.diagnostics)
+    assert "n/a" in generate_markdown_report(fund)
+    json.dumps(fund.as_dict(), allow_nan=False)
+
+
+def test_research_notice_remains_with_custom_narrative():
+    analysis = analyze_snapshot(MarketSnapshot("FUND", _history(), {"quoteType": "ETF"}),
+                                config=DislocationConfig(use_markov_regime=False))
+    markdown = generate_markdown_report(analysis, narrative_generator=lambda context: "Custom narrative.")
+    assert "Custom narrative." in markdown
+    assert RESEARCH_DISCLAIMER in markdown
+    assert "not investment advice" in markdown

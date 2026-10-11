@@ -3,6 +3,44 @@
 Available in RiskOptima 2.8.0 under `riskoptima.dislocation`. This is a research
 screen, not a validated investment recommendation or market-bottom predictor.
 
+Reports and scores are **not investment advice** or recommendations to buy,
+sell or hold an instrument. RiskOptima is for research and educational use.
+Models and third-party inputs can be incomplete or inaccurate; independently
+verify results. Past performance does not guarantee future results.
+
+## Fund Diagnostics (2.8.1)
+
+A mutual fund can hold equities without being an operating-company equity.
+Its units represent pooled assets, not the fund manager's corporate shares.
+Corporate cash-flow DCF therefore cannot be applied to those units merely
+because fund metadata contains a P/E or assets figure. Look-through valuation
+would require holdings weights and fair-value estimates for the underlying
+assets, adjusted for fund liabilities, costs and unit count. That model is
+not implemented by this dislocation screen.
+
+Available `MarketSnapshot.info` fields are disclosed under `metrics`:
+`category` -> `fund_category`, `fundFamily` -> `fund_family`,
+`totalAssets` -> `fund_total_assets`, `yield` -> `fund_distribution_yield`,
+`annualReportExpenseRatio` -> `fund_expense_ratio`,
+`trailingPE` -> `fund_reported_pe`, `navPrice` -> `fund_nav_price`.
+Yield and expense ratios must use decimal units (0.01 means 1%). Non-finite,
+invalid or missing metadata is unavailable, never estimated. Provider return
+fields such as `ytdReturn` are not used because their units can be ambiguous.
+
+These optional fields do **not** change the score or activate corporate DCF.
+Reported P/E methodology and dates are unverified; NAV is a reference only,
+not a computed premium/discount. Assets' currency is not independently
+verified against the quote currency. Diagnostics separately count optional
+metadata coverage; the existing `confidence_score` describes price history
+and basic identifiers, not complete fund valuation data. Open-ended mutual
+funds generally transact at NAV (subject to fees); a NAV quotation alone is
+not evidence that the underlying portfolio is intrinsically cheap.
+See [Investor.gov's mutual fund explanation](https://www.investor.gov/introduction-investing/investing-basics/glossary/mutual-funds).
+
+`RESEARCH_DISCLAIMER` is exported by `riskoptima.dislocation`; `as_dict()`
+also supplies `research_notice`. Platform consumers should display that
+notice even when using structured data rather than the Markdown report.
+
 ## Inputs and Execution
 
 - `analyze_snapshot(MarketSnapshot(...), config=...)`: network-free analysis.
