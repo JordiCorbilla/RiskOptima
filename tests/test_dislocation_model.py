@@ -61,7 +61,10 @@ def test_equity_uses_fundamentals_and_produces_intrinsic_value():
             "longName": "Good Business",
         },
     )
-    report = analyze_snapshot(snapshot, config=DislocationConfig(use_markov_regime=False))
+    report = analyze_snapshot(
+        snapshot,
+        config=DislocationConfig(use_markov_regime=False, valuation_horizon_years=10),
+    )
 
     assert report.instrument_type == "EQUITY"
     assert report.valuation_mode == "fundamental"
@@ -69,7 +72,10 @@ def test_equity_uses_fundamentals_and_produces_intrinsic_value():
     assert report.valuation_score is not None
     assert report.intrinsic_value is not None
     assert report.margin_of_safety is not None
-    assert report.expected_5y_irr is not None
+    assert report.expected_annualized_return is not None
+    assert report.valuation_horizon_years == 10
+    markdown = generate_markdown_report(report)
+    assert "Implied 10Y annualized return to model value" in markdown
     assert 0 <= report.confidence_score <= 100
 
 

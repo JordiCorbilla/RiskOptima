@@ -101,7 +101,8 @@ def generate_markdown_report(
                 f"| EV / EBITDA | {_fmt_number(_as_float(m.get('ev_to_ebitda')))} |",
                 f"| Intrinsic value | {_fmt_number(analysis.intrinsic_value)} |",
                 f"| Margin of safety | {_fmt_pct(analysis.margin_of_safety)} |",
-                f"| Implied 5Y annualized return to model value | {_fmt_pct(analysis.expected_5y_irr)} |",
+                f"| Implied {analysis.valuation_horizon_years}Y annualized return to model value | "
+                f"{_fmt_pct(analysis.expected_annualized_return)} |",
                 f"| DCF growth assumption | {_fmt_pct(_as_float(m.get('dcf_growth')))} |",
                 f"| DCF discount rate | {_fmt_pct(_as_float(m.get('dcf_discount_rate')))} |",
                 f"| Terminal growth | {_fmt_pct(_as_float(m.get('dcf_terminal_growth')))} |",

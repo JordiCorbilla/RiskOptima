@@ -75,7 +75,8 @@ class DislocationAnalysis:
     metrics: dict[str, float | str | None]
     intrinsic_value: float | None = None
     margin_of_safety: float | None = None
-    expected_5y_irr: float | None = None
+    expected_annualized_return: float | None = None
+    valuation_horizon_years: int = 5
     narrative: str = ""
     diagnostics: list[str] = field(default_factory=list)
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -551,7 +552,8 @@ def analyze_snapshot(
         metrics=metric_payload,
         intrinsic_value=intrinsic,
         margin_of_safety=margin,
-        expected_5y_irr=expected_irr,
+        expected_annualized_return=expected_irr,
+        valuation_horizon_years=config.valuation_horizon_years,
         diagnostics=diagnostics,
     )
     analysis.narrative = (
