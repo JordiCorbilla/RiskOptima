@@ -169,10 +169,10 @@ def _normalize_history(history: pd.DataFrame, symbol: str) -> pd.DataFrame:
         else:
             raise ValueError(f"Price history for {symbol} contains multiple Close columns")
     else:
-        close_column = next((c for c in ("Close", "Adj Close", "close", "adjclose") if c in frame.columns), None)
-        if close_column is None:
+        flat_close = next((c for c in ("Close", "Adj Close", "close", "adjclose") if c in frame.columns), None)
+        if flat_close is None:
             raise ValueError(f"Price history for {symbol} does not contain a Close column")
-        frame = frame.rename(columns={close_column: "Close"})
+        frame = frame.rename(columns={flat_close: "Close"})
     frame["Close"] = pd.to_numeric(frame["Close"], errors="coerce")
     frame = frame.replace([np.inf, -np.inf], np.nan).dropna(subset=["Close"])
     frame = frame[frame["Close"] > 0].sort_index()
