@@ -364,7 +364,7 @@ def _equity_dcf(
         return None, None, None, {"dcf_growth": growth, "dcf_discount_rate": discount, "dcf_terminal_growth": terminal}
 
     margin = intrinsic / price - 1.0
-    expected_irr = (intrinsic / price) ** (1.0 / config.valuation_horizon_years) - 1.0 if price > 0 else None
+    expected_irr = (intrinsic / price) ** (1.0 / config.valuation_horizon_years) - 1.0
     return float(intrinsic), float(margin), float(expected_irr), {
         "dcf_growth": growth,
         "dcf_discount_rate": discount,
