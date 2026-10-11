@@ -6,4 +6,4 @@
 # Description: Package version shared by public APIs and chart branding
 ###############################################################################
 
-__version__ = "2.7.1"
+__version__ = "2.8.0"

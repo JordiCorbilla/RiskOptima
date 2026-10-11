@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from numbers import Integral, Real
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 import numpy as np
@@ -35,6 +36,26 @@ class DislocationConfig:
     min_growth: float = -0.05
     use_markov_regime: bool = True
     random_state: int = 7
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.history_period, str) or not self.history_period.strip():
+            raise ValueError("history_period must be a non-empty string")
+        for name in ("min_observations", "trend_window", "zscore_window", "volatility_window", "valuation_horizon_years"):
+            value = getattr(self, name)
+            minimum = 1 if name == "valuation_horizon_years" else 2
+            if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+                raise ValueError(f"{name} must be an integer >= {minimum}")
+        for name in ("discount_rate", "terminal_growth", "min_growth", "max_growth"):
+            if isinstance(getattr(self, name), bool) or not isinstance(getattr(self, name), Real) or _finite(getattr(self, name)) is None:
+                raise ValueError(f"{name} must be finite")
+        if self.discount_rate <= 0 or not -1 < self.terminal_growth < self.discount_rate:
+            raise ValueError("discount_rate must be positive and greater than terminal_growth > -1")
+        if not -1 < self.min_growth <= self.max_growth:
+            raise ValueError("growth bounds must satisfy -1 < min_growth <= max_growth")
+        if isinstance(self.random_state, bool) or not isinstance(self.random_state, Integral) or self.random_state < 0:
+            raise ValueError("random_state must be a non-negative integer")
+        if not isinstance(self.use_markov_regime, bool):
+            raise ValueError("use_markov_regime must be boolean")
 
 
 @dataclass
@@ -82,10 +103,27 @@ class DislocationAnalysis:
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def as_dict(self) -> dict[str, Any]:
+        from riskoptima._version import __version__
+
         result = asdict(self)
         result["as_of"] = str(self.as_of)
         result["generated_at"] = self.generated_at.isoformat()
+        result["upside_to_model_value"] = self.upside_to_model_value
+        result["implied_annualized_return"] = self.implied_annualized_return
+        result["riskoptima_version"] = __version__
         return result
+
+    @property
+    def upside_to_model_value(self) -> float | None:
+        return None if self.intrinsic_value is None else self.intrinsic_value / self.price - 1.0
+
+    @property
+    def implied_annualized_return(self) -> float | None:
+        """Hypothetical convergence to today's model value, not a return forecast.
+
+        ``expected_annualized_return`` remains available for compatibility.
+        """
+        return self.expected_annualized_return
 
 
 class YahooFinanceProvider:
@@ -147,6 +185,10 @@ def _normalize_history(history: pd.DataFrame, symbol: str) -> pd.DataFrame:
     if history is None or history.empty:
         raise ValueError(f"No price history returned for {symbol}")
     frame = history.copy()
+    if not isinstance(frame.index, pd.DatetimeIndex):
+        raise ValueError(f"Price history for {symbol} must have a DatetimeIndex of daily observations")
+    frame = frame.loc[~frame.index.isna()]
+    frame = frame.loc[~frame.index.duplicated(keep="last")]
     if isinstance(frame.columns, pd.MultiIndex):
         match = next(
             (
@@ -221,7 +263,7 @@ def _market_metrics(prices: pd.Series, config: DislocationConfig) -> dict[str, f
     recent_vol = float(returns.tail(vol_window).std(ddof=1) * np.sqrt(252)) if vol_window >= 2 else 0.0
 
     if len(returns) >= max(20, vol_window):
-        rolling_vol = returns.rolling(vol_window, min_periods=max(10, vol_window // 2)).std() * np.sqrt(252)
+        rolling_vol = returns.rolling(vol_window, min_periods=max(2, vol_window // 2)).std() * np.sqrt(252)
         rolling_vol = rolling_vol.dropna()
         if not rolling_vol.empty:
             vol_percentile = float((rolling_vol <= recent_vol).mean())
@@ -316,6 +358,13 @@ def _quality_score(info: Mapping[str, Any]) -> tuple[float | None, dict[str, flo
     return score, components
 
 
+def _multiple_score(value: float | None, bad: float, good: float) -> float | None:
+    """Non-positive multiples are not comparable cheapness signals."""
+    if value is None:
+        return None
+    return 0.0 if value <= 0 else _linear_score(-value, bad=-bad, good=-good)
+
+
 def _valuation_score(info: Mapping[str, Any]) -> tuple[float | None, dict[str, float | None]]:
     market_cap = _finite(info.get("marketCap"))
     fcf = _finite(info.get("freeCashflow"))
@@ -336,9 +385,9 @@ def _valuation_score(info: Mapping[str, Any]) -> tuple[float | None, dict[str, f
         "price_to_book": price_to_book,
         "fcf_yield_score": _linear_score(fcf_yield, bad=0.015, good=0.09),
         "earnings_yield_score": _linear_score(earnings_yield, bad=0.025, good=0.10),
-        "forward_pe_score": None if forward_pe is None else _linear_score(-forward_pe, bad=-40.0, good=-8.0),
-        "ev_to_ebitda_score": None if ev_to_ebitda is None else _linear_score(-ev_to_ebitda, bad=-30.0, good=-6.0),
-        "price_to_book_score": None if price_to_book is None else _linear_score(-price_to_book, bad=-10.0, good=-1.0),
+        "forward_pe_score": _multiple_score(forward_pe, bad=40.0, good=8.0),
+        "ev_to_ebitda_score": _multiple_score(ev_to_ebitda, bad=30.0, good=6.0),
+        "price_to_book_score": _multiple_score(price_to_book, bad=10.0, good=1.0),
     }
     score = _weighted_available(
         [
@@ -356,7 +405,7 @@ def _select_growth(info: Mapping[str, Any], config: DislocationConfig) -> float:
     candidates = [_finite(info.get("revenueGrowth")), _finite(info.get("earningsGrowth"))]
     valid = [x for x in candidates if x is not None]
     if not valid:
-        return 0.04
+        return float(np.clip(0.04, config.min_growth, config.max_growth))
     return float(np.clip(np.median(valid), config.min_growth, config.max_growth))
 
 
@@ -371,7 +420,7 @@ def _equity_dcf(
         return None, None, None, {"dcf_growth": None, "dcf_discount_rate": None, "dcf_terminal_growth": None}
 
     discount = config.discount_rate
-    terminal = min(config.terminal_growth, discount - 0.01)
+    terminal = config.terminal_growth
     growth = _select_growth(info, config)
     projected = fcf
     pv = 0.0
@@ -384,7 +433,7 @@ def _equity_dcf(
     if not np.isfinite(intrinsic) or intrinsic <= 0:
         return None, None, None, {"dcf_growth": growth, "dcf_discount_rate": discount, "dcf_terminal_growth": terminal}
 
-    margin = intrinsic / price - 1.0
+    margin = (intrinsic - price) / intrinsic
     expected_irr = (intrinsic / price) ** (1.0 / config.valuation_horizon_years) - 1.0
     return float(intrinsic), float(margin), float(expected_irr), {
         "dcf_growth": growth,
@@ -401,7 +450,7 @@ def _confidence(
 ) -> float:
     history_score = _clip(100.0 * n_obs / (252.0 * 3.0))
     metadata_keys = ("quoteType", "currency", "longName", "shortName")
-    metadata_score = 100.0 * sum(info.get(k) is not None for k in metadata_keys) / len(metadata_keys)
+    metadata_score = 100.0 * sum(isinstance(info.get(k), str) and bool(info[k].strip()) for k in metadata_keys) / len(metadata_keys)
     if not is_equity:
         return _clip(0.80 * history_score + 0.20 * metadata_score)
 
@@ -414,7 +463,7 @@ def _confidence(
         "forwardPE",
         "enterpriseToEbitda",
     )
-    fundamental_score = 100.0 * sum(info.get(k) is not None for k in fundamental_keys) / len(fundamental_keys)
+    fundamental_score = 100.0 * sum(_finite(info.get(k)) is not None for k in fundamental_keys) / len(fundamental_keys)
     dcf_score = 100.0 if intrinsic_value is not None else 0.0
     return _clip(0.35 * history_score + 0.15 * metadata_score + 0.40 * fundamental_score + 0.10 * dcf_score)
 
@@ -445,19 +494,22 @@ def _default_narrative(analysis: DislocationAnalysis) -> str:
                 f"{analysis.valuation_score:.1f}/100."
             )
         if analysis.intrinsic_value is not None and analysis.margin_of_safety is not None:
-            direction = "above" if analysis.margin_of_safety >= 0 else "below"
+            upside = analysis.upside_to_model_value
+            assert upside is not None
+            direction = "above" if upside >= 0 else "below"
             parts.append(
-                f"The model's conservative FCFE valuation is {analysis.intrinsic_value:.2f}, "
-                f"{abs(analysis.margin_of_safety):.1%} {direction} the observed price."
+                f"The simplified FCF-proxy scenario value is {analysis.intrinsic_value:.2f}, "
+                f"{abs(upside):.1%} {direction} the observed price. This is not a reconciled FCFE valuation."
             )
     else:
         parts.append(
-            "This instrument is treated as a fund/pooled vehicle, so RiskOptima does not fabricate a "
+            "This is a non-equity instrument, so RiskOptima does not fabricate a "
             "company-style intrinsic value; the signal is based on price, drawdown, volatility and regime dislocation."
         )
     parts.append(
         f"The market-dislocation component is {analysis.dislocation_score:.1f}/100 and the regime-opportunity "
-        f"component is {analysis.regime_score:.1f}/100. Model confidence is {analysis.confidence_score:.1f}/100."
+        f"component is {analysis.regime_score:.1f}/100. Data coverage is {analysis.confidence_score:.1f}/100, "
+        "not a calibrated probability of model accuracy."
     )
     if analysis.confidence_score < 55:
         parts.append("The result should be treated cautiously because data coverage is incomplete.")
@@ -496,6 +548,7 @@ def analyze_snapshot(
 
     metric_payload: dict[str, float | str | None] = dict(metrics)
     metric_payload["regime"] = regime_label
+    metric_payload["trend_window"] = float(config.trend_window)
 
     if is_equity:
         quality, quality_components = _quality_score(info)
@@ -504,8 +557,18 @@ def analyze_snapshot(
         metric_payload.update(quality_components)
         metric_payload.update(valuation_components)
         metric_payload.update(dcf_metrics)
+        metric_payload["cash_flow_basis"] = "unadjusted_fcf_proxy"
+        for key in ("forwardPE", "enterpriseToEbitda", "priceToBook"):
+            value = _finite(info.get(key))
+            if value is not None and value <= 0:
+                diagnostics.append(f"{key} is non-positive; assigned zero valuation score, not treated as cheap.")
+        diagnostics.append("DCF uses an unadjusted free-cash-flow proxy; net borrowing and normalized FCFE are not modeled.")
+        if intrinsic is None:
+            diagnostics.append("DCF unavailable: finite positive freeCashflow and sharesOutstanding are required.")
 
-        intrinsic_score = None if margin is None else _linear_score(margin, bad=-0.25, good=0.50)
+        upside = None if intrinsic is None else intrinsic / price - 1.0
+        metric_payload["upside_to_model_value"] = upside
+        intrinsic_score = None if upside is None else _linear_score(upside, bad=-0.25, good=0.50)
         opportunity = _weighted_available(
             [
                 (valuation, 0.30),

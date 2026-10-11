@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "riskoptima"
-version = "2.7.1"
+version = "2.8.0"
 description = "RiskOptima is a powerful Python toolkit for financial risk analysis, portfolio optimization, and advanced quantitative modeling. It integrates state-of-the-art methodologies, including Monte Carlo simulations, Value at Risk (VaR), Conditional VaR (CVaR), Black-Scholes, Heston, and Merton Jump Diffusion models, to aid investors in making data-driven investment decisions."
 authors = ["Jordi Corbilla <jordi.coll.corbilla@gmail.com>"]
 license = "MIT"
@@ -19,7 +19,8 @@ keywords = [
     "volatility", "realized-volatility", "implied-volatility", "ohlc-volatility", "ewma-volatility",
     "risk-attribution", "stress-testing", "option-book", "greeks", "scenario-analysis",
     "yield-curve", "discount-curve", "curve-bootstrap", "SOFR", "forward-rates",
-    "sofr-futures", "multi-curve", "key-rate-dv01", "day-count", "fomc"
+    "sofr-futures", "multi-curve", "key-rate-dv01", "day-count", "fomc",
+    "dislocation", "valuation", "fundamental-analysis"
 ]
 
 [tool.poetry.dependencies]
