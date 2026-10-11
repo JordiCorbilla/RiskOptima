@@ -18,6 +18,12 @@ import pandas as pd
 
 Number = int | float | np.number
 NarrativeGenerator = Callable[[Mapping[str, Any]], str]
+RESEARCH_DISCLAIMER = (
+    "RiskOptima is for research and educational use only. Reports and scores are not investment advice "
+    "or recommendations to buy, sell or hold any instrument. Models and third-party data may be incomplete "
+    "or inaccurate. Past performance does not guarantee future results. Independently verify inputs and "
+    "results before making investment decisions."
+)
 
 
 @dataclass(frozen=True)
@@ -111,6 +117,7 @@ class DislocationAnalysis:
         result["upside_to_model_value"] = self.upside_to_model_value
         result["implied_annualized_return"] = self.implied_annualized_return
         result["riskoptima_version"] = __version__
+        result["research_notice"] = RESEARCH_DISCLAIMER
         return result
 
     @property
@@ -365,6 +372,39 @@ def _multiple_score(value: float | None, bad: float, good: float) -> float | Non
     return 0.0 if value <= 0 else _linear_score(-value, bad=-bad, good=-good)
 
 
+def _fund_metadata(info: Mapping[str, Any], diagnostics: list[str]) -> dict[str, float | str | None]:
+    """Disclose provider fund metadata without treating it as corporate accounts."""
+    fields: dict[str, float | str | None] = {}
+    for target, source in (("fund_category", "category"), ("fund_family", "fundFamily")):
+        value = info.get(source)
+        fields[target] = value.strip() if isinstance(value, str) and value.strip() else None
+    for target, source in (
+        ("fund_total_assets", "totalAssets"), ("fund_distribution_yield", "yield"),
+        ("fund_expense_ratio", "annualReportExpenseRatio"),
+        ("fund_reported_pe", "trailingPE"), ("fund_nav_price", "navPrice"),
+    ):
+        value = _finite(info.get(source))
+        # Yield/expense ratios use decimal units in the snapshot contract.
+        valid = value is not None and (
+            0 <= value <= 1 if target in {"fund_distribution_yield", "fund_expense_ratio"} else value > 0
+        )
+        fields[target] = value if valid else None
+        if info.get(source) is not None and not valid:
+            diagnostics.append(f"Fund metadata {source} ignored: invalid value or units.")
+    available = sum(value is not None for value in fields.values())
+    fields["fund_metadata_fields_available"] = float(available)
+    fields["fund_metadata_fields_total"] = 7.0
+    diagnostics.append(f"Fund metadata coverage: {available}/7 optional fields available; missing fields are not estimated.")
+    diagnostics.append("Data coverage score reflects price history and basic identifiers, not complete fund valuation data.")
+    if fields["fund_reported_pe"] is not None:
+        diagnostics.append("Provider-reported fund P/E is descriptive; holdings methodology and valuation date are not verified.")
+    if fields["fund_nav_price"] is not None:
+        diagnostics.append("Provider NAV is reference metadata only: matching date, units and share class are not verified; no NAV discount calculated.")
+    else:
+        diagnostics.append("No separate NAV supplied; no NAV premium or discount is measured.")
+    return fields
+
+
 def _valuation_score(info: Mapping[str, Any]) -> tuple[float | None, dict[str, float | None]]:
     market_cap = _finite(info.get("marketCap"))
     fcf = _finite(info.get("freeCashflow"))
@@ -502,10 +542,14 @@ def _default_narrative(analysis: DislocationAnalysis) -> str:
                 f"{abs(upside):.1%} {direction} the observed price. This is not a reconciled FCFE valuation."
             )
     else:
-        parts.append(
-            "This is a non-equity instrument, so RiskOptima does not fabricate a "
-            "company-style intrinsic value; the signal is based on price, drawdown, volatility and regime dislocation."
-        )
+        if analysis.instrument_type in {"MUTUAL_FUND", "ETF"}:
+            parts.append(
+                "This is a pooled fund, which may hold equities; its units are not shares in an operating company. "
+                "RiskOptima does not fabricate a company-style intrinsic value for the fund. "
+                "Available fund metadata is disclosed separately; the score uses price, drawdown, volatility and regimes."
+            )
+        else:
+            parts.append("This instrument is not identified as a corporate equity; no company-style DCF is applied.")
     parts.append(
         f"The market-dislocation component is {analysis.dislocation_score:.1f}/100 and the regime-opportunity "
         f"component is {analysis.regime_score:.1f}/100. Data coverage is {analysis.confidence_score:.1f}/100, "
@@ -589,7 +633,14 @@ def analyze_snapshot(
             ]
         )
         valuation_mode = "market_dislocation"
-        diagnostics.append("Corporate intrinsic valuation skipped for non-equity instrument.")
+        if instrument_type in {"MUTUAL_FUND", "ETF"}:
+            metric_payload.update(_fund_metadata(info, diagnostics))
+            diagnostics.append(
+                "Fund units may provide equity exposure, but are not corporate shares. Corporate DCF is not applicable "
+                "to the fund itself; holdings-level fair values and weights would be required for look-through valuation."
+            )
+        else:
+            diagnostics.append("Corporate valuation unavailable: instrument is not identified as a corporate equity.")
 
     opportunity = float(opportunity if opportunity is not None else 50.0)
     confidence = _confidence(len(history), info, is_equity, intrinsic)

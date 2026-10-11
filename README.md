@@ -28,6 +28,16 @@ https://pypistats.org/packages/riskoptima
 - Portfolio Projects: algorithmic trading/backtesting, portfolio optimization, market risk dashboard, option pricing engine, and credit risk model workflows.
 - Dislocation Research: equity quality/valuation scoring, simplified FCF-proxy scenarios, fund price/regime analysis, and Markdown reports.
 
+## Research Notice
+
+RiskOptima is for research and educational use only. Its reports and scores are **not investment advice** or recommendations to buy, sell or hold any instrument. Models and third-party data may be incomplete or inaccurate; past performance does not guarantee future results. Independently verify inputs and results before making investment decisions.
+
+## What's New in 2.8.1
+
+- Fund reports distinguish equity exposure from corporate shares and disclose available provider metadata, missing fields and valuation limitations.
+- Fund assets, yield, expenses, reported P/E and NAV references are descriptive only; they do not trigger corporate DCF or alter the dislocation score.
+- Research-only notices are included in every dislocation report and its structured platform payload.
+
 ## What's New in 2.8.0
 
 - New `riskoptima.dislocation` API with injectable data providers, resilient universe scans, structured platform payloads, and versioned Markdown reports.
@@ -433,7 +443,7 @@ Run notebooks from the repository root so local sample paths and the checkout re
 Notebook setup cells do not upgrade RiskOptima automatically. In a fresh environment, install the desired release before opening Jupyter:
 
 ```bash
-python -m pip install "riskoptima==2.8.0" jupyter
+python -m pip install "riskoptima==2.8.1" jupyter
 python -m jupyter lab
 ```
 
