@@ -21,10 +21,29 @@
 See the [numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md) for the
 inputs, tolerances and measured results.
 
+## 22 November 2026 — Legacy allocation bounds
+
+Added an opt-in final-weight mode to the existing Monte Carlo optimizer
+and to the legacy ML portfolio workflow. It uses a bounded minimum-variance
+candidate to cover tight volatility caps and allocates the remaining
+sampling budget on the feasible fully invested set. The comparison keeps
+the existing zero-risk score convention. The default keeps the existing
+normalized sampling and global NumPy seed behavior. An out-of-bounds
+result now prompts callers to select the explicit mode. Both arms of the
+legacy ML workflow now use the supplied simulation budget.
+
+Validation used independent two-asset analytical solutions, a seeded
+legacy replay, generated budget and bounds cases, and a synthetic fixture
+through both allocations in the legacy ML workflow. All 194 package tests
+passed after removing a flaky wall-clock deadline from one existing
+backtest property test. Its case count and numerical assertions are
+unchanged. Both coverage gates, Ruff and mypy passed. Live notebook 02
+(portfolio optimization) and notebook 06 (options and Greeks) executed
+against the branch.
+
 ## Next outstanding item
 
-Review the allocation bounds of the legacy Monte Carlo optimizer. Specify how
-to offer final weight limits without breaking existing callers that use its
-normalized sampling bounds. Validate the investment budget, volatility cap,
-label order, seeding and the legacy portfolio workflow before changing its
-default.
+Start Phase 2.3 with the package import boundary. Verify that importing and
+using standalone numerical APIs does not initialize the legacy facade,
+network vendors or plotting. Then specify point-in-time data provenance and
+reconcile the separate SMA execution workflows.

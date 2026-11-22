@@ -30,3 +30,18 @@ Primary references
 
 - [QuantLib BlackCalculator](https://github.com/lballabio/QuantLib/blob/v1.44/ql/pricingengines/blackcalculator.hpp)
 - [QuantLib Thirty360 implementation](https://github.com/lballabio/QuantLib/blob/v1.44/ql/time/daycounters/thirty360.cpp)
+
+
+## 22 November 2026 — Legacy allocation bounds
+
+The fixture builds prices from orthogonal shocks with diagonal annual
+variances of 0.04 and 0.09 and the legacy 260-observation convention.
+See [test_legacy_allocation_bounds.py](../tests/test_legacy_allocation_bounds.py).
+
+| Model or invariant | Reference | Input | Expected | Actual | Tolerance | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Opt-in maximum sampled Sharpe | Analytic monotone Sharpe in the second weight | Annual return 0 for A and 0.12 for B, shuffled Series labels, bounds [0.35, 0.65], cap 0.30, 5,000 draws, seed 73 | Optimum [0.35, 0.65] within the constraints | [0.350087393909, 0.649912606091], volatility 0.207164724157, exact seed replay | 0.001 weight error from sampled optimum, 1e-12 on budget | Pass |
+| Tight volatility cap | Normalize inverse variances | Bounds [0.20, 0.80], cap 0.166410058867569 plus 1e-10, one random draw | [0.692307692308, 0.307692307692] and volatility 0.166410058867569 | [0.692307692308, 0.307692307692] with the same measured volatility | 1e-7 on weights, explicit cap | Pass |
+| Legacy default | Independent normalization, quadratic variance and argmax of the seeded draws | Seed 9, 40 draws, raw bounds [0.01, 0.35], annual means [0.02, 0.13] | [0.256532754652, 0.743467245348] and warning about the breached bound | Same weights and expected warning | Exact seed replay | Pass |
+| Budget and feasible bounds | Long-only investment budget and component inequalities | 25 generated cases with up to 30 assets, plus a two-asset cap of 0.50 per asset | Weights sum to one and satisfy interval, boundary [0.5, 0.5] | All inequalities and boundary satisfied | 1e-12 on sums, exact interval | Pass |
+| Infeasible portfolio | Sum of upper bounds and analytical minimum variance | Two assets with default cap 0.35 each, or a volatility cap below the independent minimum | Reject infeasible bounds and volatility caps | Expected errors | Exact failure mode | Pass |

@@ -239,3 +239,46 @@ def optimize_min_variance(
         raise ValueError(f"Minimum variance optimization failed: {result.message}")
     opt_result = _format_result(result, "min_variance", expected_returns, cov, 0.0, constraints, previous_weights, factor_exposures, metadata)
     return opt_result if return_result else opt_result.weights
+
+
+def _bounded_allocation_candidates(n_assets, n_sims, lower, upper, rng):
+    """Sample feasible long-only allocations with randomized assignment order."""
+    # At each draw, leave enough budget for the remaining assets' bounds.
+    order = rng.random((n_sims, n_assets)).argsort(axis=1)
+    rows = np.arange(n_sims)
+    weights = np.empty((n_sims, n_assets))
+    remaining = np.ones(n_sims)
+    for step in range(n_assets - 1):
+        assets_after = n_assets - step - 1
+        lo = np.maximum(lower, remaining - assets_after * upper)
+        hi = np.minimum(upper, remaining - assets_after * lower)
+        draw = lo + np.maximum(hi - lo, 0.0) * rng.random(n_sims)
+        weights[rows, order[:, step]] = draw
+        remaining -= draw
+    weights[rows, order[:, -1]] = remaining
+    return np.clip(weights, lower, upper)
+
+
+def _bounded_monte_carlo_weights(expected_returns, cov, volatility_cap, lower, upper, n_sims, rng):
+    """Select the best sampled Sharpe subject to final weights and volatility."""
+    n_assets = len(expected_returns)
+    equal_weight = 1.0 / n_assets
+    if equal_weight in (lower, upper):
+        candidates = np.full((1, n_assets), equal_weight)
+    else:
+        min_risk = optimize_min_variance(cov, constraints=Constraints(weight_bounds=(lower, upper)))
+        samples = _bounded_allocation_candidates(n_assets, n_sims, lower, upper, rng)
+        candidates = np.vstack([min_risk.to_numpy(), samples])
+
+    values = cov.to_numpy()
+    variances = np.einsum("ij,jk,ik->i", candidates, values, candidates, optimize=True)
+    volatility = np.sqrt(np.maximum(variances, 0.0))
+    feasible = volatility <= np.nextafter(volatility_cap, np.inf)
+    if not feasible.any():
+        raise ValueError("No portfolio satisfies the maximum volatility constraint.")
+    candidates = candidates[feasible]
+    volatility = volatility[feasible]
+    returns = candidates @ expected_returns
+    # Preserve the legacy score of zero for an undefined zero-volatility Sharpe.
+    scores = np.divide(returns, volatility, out=np.zeros_like(returns), where=volatility > 0)
+    return candidates[np.argmax(scores)]

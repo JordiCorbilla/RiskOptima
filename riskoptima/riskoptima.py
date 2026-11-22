@@ -1429,63 +1429,96 @@ class RiskOptima:
         return stock_data
 
     @staticmethod
-    def perform_mean_variance_optimization(tickers, start_date, end_date,
-                                           max_acceptable_volatility,
-                                           predefined_returns=None,
-                                           min_allocation=0.01,
-                                           max_allocation=0.35,
-                                           num_simulations=100000):
-        """
-        Execute mean-variance optimization using Monte Carlo simulation with weight constraints.
+    def perform_mean_variance_optimization(
+        tickers, start_date, end_date, max_acceptable_volatility, predefined_returns=None,
+        min_allocation=0.01, max_allocation=0.35, num_simulations=100000, *,
+        enforce_allocation_bounds=False, random_state=None,
+    ):
+        """Return sampled maximum-Sharpe weights in ticker order.
 
-        :param list tickers: List of stock ticker symbols to optimize.
-        :param str start_date: Start date for the historical data in 'YYYY-MM-DD' format.
-        :param str end_date: End date for the historical data in 'YYYY-MM-DD' format.
-        :param float max_acceptable_volatility: Maximum allowable annualized volatility for the portfolio.
-        :param ndarray predefined_returns: (Optional) Predefined annualized returns for the tickers.
-        :param float min_allocation: Minimum weight allocation for each stock.
-        :param float max_allocation: Maximum weight allocation for each stock.
-        :param int num_simulations: Number of Monte Carlo simulations to run.
-        :return: Optimal portfolio weights as a numpy array.
+        Expected returns, covariance and the volatility cap are annualized on
+        the legacy trading-day basis. Supply an array in ticker order or a
+        Series indexed by ticker for predefined expected returns.
+
+        Pass enforce_allocation_bounds=True to impose the limits on final
+        long-only weights. The default applies limits to the draws before
+        normalizing, and warns when the chosen weights exceed those limits.
+        A supplied random_state uses a separate NumPy random generator.
         """
-        price_data = RiskOptima.fetch_historical_stock_prices(tickers, start_date, end_date)['Close']
+        from riskoptima.optim.mean_variance import _bounded_monte_carlo_weights
+
+        assets = pd.Index([tickers] if isinstance(tickers, str) else tickers)
+        if assets.empty or not assets.is_unique:
+            raise ValueError("tickers must contain unique asset labels")
+        if not np.isfinite(max_acceptable_volatility) or max_acceptable_volatility < 0:
+            raise ValueError("max_acceptable_volatility must be finite and non-negative")
+        if not isinstance(num_simulations, (int, np.integer)) or num_simulations <= 0:
+            raise ValueError("num_simulations must be a positive integer")
+        if not np.isfinite([min_allocation, max_allocation]).all() or min_allocation > max_allocation:
+            raise ValueError("allocation bounds must be finite and ordered")
+        equal_weight = 1.0 / len(assets)
+        if enforce_allocation_bounds and not 0 <= min_allocation <= equal_weight <= max_allocation <= 1:
+            raise ValueError("allocation bounds must admit a fully invested long-only portfolio")
+
+        price_data = RiskOptima.fetch_historical_stock_prices(assets.tolist(), start_date, end_date)['Close']
         if price_data.empty:
             raise ValueError("No historical data retrieved. Verify the tickers and date range.")
-        price_data = pd.DataFrame(price_data).reindex(columns=tickers)
+        if isinstance(price_data, pd.Series) and len(assets) == 1:
+            price_data = price_data.to_frame(name=assets[0])
+        price_data = pd.DataFrame(price_data).reindex(columns=assets).sort_index()
+        price_data = price_data.replace([np.inf, -np.inf], np.nan)
+        if not price_data.index.is_unique or (price_data <= 0).any().any():
+            raise ValueError("Historical prices must be positive and timestamps must be unique")
         missing_prices = price_data.columns[price_data.notna().sum().lt(2)].tolist()
         if missing_prices:
             raise ValueError(f"Historical prices require at least two observations for: {missing_prices}")
         daily_returns = price_data.pct_change(fill_method=None).dropna()
         if len(daily_returns) < 2:
             raise ValueError("At least two complete return observations are required")
+
         if predefined_returns is None:
             predefined_returns = daily_returns.mean() * RiskOptima.TRADING_DAYS
+        if isinstance(predefined_returns, pd.Series) and not isinstance(predefined_returns.index, pd.RangeIndex):
+            if not predefined_returns.index.is_unique:
+                raise ValueError("predefined_returns must have unique asset labels")
+            predefined_returns = predefined_returns.reindex(assets)
+        expected_returns = np.asarray(predefined_returns, dtype=float)
+        if expected_returns.shape != (len(assets),) or not np.isfinite(expected_returns).all():
+            raise ValueError("predefined_returns must provide one finite annual return per asset")
 
-        covariance_matrix = daily_returns.cov() * RiskOptima.TRADING_DAYS
-        simulation_results = np.zeros((4, num_simulations))
-        weight_matrix = np.zeros((len(tickers), num_simulations))
+        covariance = daily_returns.cov() * RiskOptima.TRADING_DAYS
+        rng = np.random if random_state is None else np.random.default_rng(random_state)
+        if enforce_allocation_bounds:
+            return _bounded_monte_carlo_weights(
+                expected_returns, covariance, max_acceptable_volatility,
+                min_allocation, max_allocation, num_simulations, rng,
+            )
 
-        for i in range(num_simulations):
-            random_weights = np.random.uniform(min_allocation, max_allocation, len(tickers))
-            random_weights /= np.sum(random_weights)
-
-            weight_matrix[:, i] = random_weights
-
-            portfolio_return = np.sum(random_weights * predefined_returns)
-            portfolio_volatility = np.sqrt(np.dot(random_weights.T, np.dot(covariance_matrix, random_weights)))
-            sharpe_ratio = portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0
-
-            simulation_results[:, i] = [portfolio_return, portfolio_volatility, sharpe_ratio, i]
-
-        result_columns = ['Annualized Return', 'Annualized Volatility', 'Sharpe Ratio', 'Simulation Index']
-        simulation_results_df = pd.DataFrame(simulation_results.T, columns=result_columns)
-
-        feasible_portfolios = simulation_results_df[simulation_results_df['Annualized Volatility'] <= max_acceptable_volatility]
-        if feasible_portfolios.empty:
+        covariance_values = covariance.to_numpy()
+        best_score = -np.inf
+        best_weights = None
+        for _ in range(num_simulations):
+            weights = rng.uniform(min_allocation, max_allocation, len(assets))
+            total = weights.sum()
+            if total == 0:
+                continue
+            weights /= total
+            volatility = np.sqrt(max(float(weights @ covariance_values @ weights), 0.0))
+            if volatility <= max_acceptable_volatility:
+                score = float(weights @ expected_returns) / volatility if volatility > 0 else 0.0
+                if best_weights is None or score > best_score:
+                    best_score = score
+                    best_weights = weights
+        if best_weights is None:
             raise ValueError("No portfolio satisfies the maximum volatility constraint.")
-
-        optimal_index = feasible_portfolios['Sharpe Ratio'].idxmax()
-        return weight_matrix[:, int(optimal_index)]
+        if (best_weights < min_allocation - 1e-12).any() or (best_weights > max_allocation + 1e-12).any():
+            warnings.warn(
+                "Legacy allocation limits apply to draws before normalization and may be exceeded. "
+                "Pass enforce_allocation_bounds=True to constrain final weights.",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return best_weights
 
     @staticmethod
     def add_features(stock_prices):
@@ -2557,7 +2590,9 @@ class RiskOptima:
         market_benchmark=['SPY'],
         max_volatility=0.15,
         min_weight=0.03,
-        max_weight=0.2
+        max_weight=0.2,
+        *,
+        enforce_allocation_bounds=False,
     ):
         """
         Run portfolio optimization using machine learning and mean-variance optimization.
@@ -2572,7 +2607,8 @@ class RiskOptima:
             training_start_date (str): Start date for training data in 'YYYY-MM-DD' format.
             training_end_date (str): End date for training data in 'YYYY-MM-DD' format.
             risk_free_rate (float): Risk-free rate used in performance calculations.
-            num_portfolios (int): (Optional) Number of portfolios to simulate (if needed).
+            num_portfolios (int): Number of random candidates for each allocation.
+            enforce_allocation_bounds (bool): Apply min_weight and max_weight to final allocations.
             market_benchmark (list): List of market benchmark tickers (e.g. ['SPY']).
             max_volatility (float): Maximum allowed portfolio volatility.
             min_weight (float): Minimum allocation weight per asset.
@@ -2620,10 +2656,15 @@ class RiskOptima:
         # Calculate tickers and original weights from the portfolio dictionary.
         tickers, weights = RiskOptima.calculate_portfolio_allocation(portfolio)
 
-        # --- Mean-Variance Optimization ---
+        allocation_settings = dict(
+            max_acceptable_volatility=max_volatility,
+            min_allocation=min_weight,
+            max_allocation=max_weight,
+            num_simulations=num_portfolios,
+            enforce_allocation_bounds=enforce_allocation_bounds,
+        )
         optimized_weights_mv = RiskOptima.perform_mean_variance_optimization(
-            tickers, training_start_date, training_end_date,
-            max_volatility, min_allocation=min_weight, max_allocation=max_weight
+            tickers, training_start_date, training_end_date, **allocation_settings,
         )
 
         # --- Machine Learning Prediction for Adjusted Returns ---
@@ -2656,8 +2697,8 @@ class RiskOptima:
         adjusted_returns_vector = np.array([predicted_returns[ticker] for ticker in tickers])
 
         optimized_weights_ml_mv = RiskOptima.perform_mean_variance_optimization(
-            tickers, training_start_date, training_end_date,
-            max_volatility, adjusted_returns_vector, min_weight, max_weight
+            tickers, training_start_date, training_end_date, predefined_returns=adjusted_returns_vector,
+            **allocation_settings,
         )
 
         # --- Backtesting ---
