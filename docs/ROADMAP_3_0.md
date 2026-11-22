@@ -21,6 +21,8 @@ v2.8.2 corrects Merton pricing, event-time access, financial ML validation, cova
 5. Increase legacy branch coverage based on decision impact. Raise coverage floors only after new coverage is reproducible across supported Python versions.
 
 
+[v2.8.3](RELEASE_NOTES_v2.8.3.md) ships the completed compatibility, backtesting and filtering work.
+
 The [development ledger](DEVELOPMENT_LEDGER.md) tracks the current checkpoint.
 The [numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md) records new
 reference results after v2.8.2.

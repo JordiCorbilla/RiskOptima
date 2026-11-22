@@ -11,6 +11,7 @@ nav:
   - RiskOptima 3.0 roadmap: ROADMAP_3_0.md
   - Development ledger: DEVELOPMENT_LEDGER.md
   - Numerical validation ledger: NUMERICAL_VALIDATION_LEDGER.md
+  - v2.8.3 release notes: RELEASE_NOTES_v2.8.3.md
   - Phase 1 audit:
       - Numerical audit: audit/NUMERICAL_AUDIT.md
       - Architecture audit: audit/ARCHITECTURE_AUDIT.md
