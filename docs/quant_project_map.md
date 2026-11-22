@@ -10,6 +10,20 @@ RiskOptima includes a modular backtesting engine with strategy interfaces, portf
 
 The SMA crossover helper is intentionally simple and explainable: a short moving average above a long moving average represents positive trend momentum, while a bearish cross or risk rule exits the position. This gives users a transparent baseline strategy before they move into more complex signals.
 
+The event backtest gives strategies prices strictly before execution. The SMA
+trade-log helpers keep same-close execution as the compatibility default.
+Use `execution="next_close"` when entries, exits, stops or take profits use
+the completed close to make a decision. The pending order fills at the next
+available close. Missing closes cannot trigger or fill orders, and the trade
+log contains closed trades. Stops and targets use observed closes. Modeling
+intraday threshold fills requires intraday prices and an execution policy.
+
+The Yahoo Finance SMA adapter labels its output with its source, symbol,
+Close field, adjustment setting and session-date index role. Signal frames
+and single-asset trade logs carry these tags along with the signal or
+execution timing. Session dates alone do not establish historical data
+availability or protect against vendor revisions.
+
 Core files:
 
 - `riskoptima/backtest/engine.py`
@@ -40,6 +54,8 @@ Core files:
 ![Market risk dashboard](assets/market_risk_dashboard.png)
 
 The reporting layer builds a dashboard-ready `RiskReport` with volatility, Sharpe, Sortino, drawdown, historical VaR, Gaussian VaR, CVaR, beta, tracking error, information ratio, rolling volatility, and rolling drawdown. It also includes a Gaussian Hidden Markov Model report for latent bull, bear, and sideways market regime detection. The volatility toolkit adds historical, realized, EWMA, OHLC, and implied volatility estimators.
+
+Fit the HMM on training observations and call `model.filter_probabilities(validation_returns)` with later data. The filter advances the terminal training posterior under fixed parameters. Pass `continue_from_fit=False` for an independent sequence starting from the fitted initial distribution. Each call leaves the fitted model untouched. Dated continuations must start after the training cutoff. Each finite observation advances the state once.
 
 Core files:
 

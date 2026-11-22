@@ -9,52 +9,41 @@
 from __future__ import annotations
 
 import numpy as np
-from scipy.stats import norm
+from scipy.special import ndtr
+
+from .black_scholes import _d1_d2, _option_type, _scalar_option_inputs
 
 
-def black_scholes_greeks(S, K, T, r, sigma, option_type="call", q=0.0):
-    """
-    Computes Black-Scholes Greeks for a European option.
-
-    Theta is annualized. Vega is per 1.00 volatility point.
-    """
-    option_type = option_type.lower()
-    if option_type not in {"call", "put"}:
-        raise ValueError("option_type must be 'call' or 'put'")
-    if not np.isfinite(np.asarray([S, K, T, r, sigma, q], dtype=float)).all():
-        raise ValueError("S, K, T, r, sigma, and q must be finite")
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        raise ValueError("S, K, T, and sigma must be positive")
-
-    d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
+def _black_scholes_greeks(S, K, T, r, sigma, q, *, option_type):
+    """Compute Greeks of validated scalar or compatible array inputs."""
+    sqrt_t = np.sqrt(T)
+    stddev = sigma * sqrt_t
+    d1, d2 = _d1_d2(S, K, T, r, q, stddev)
     discount_q = np.exp(-q * T)
     discount_r = np.exp(-r * T)
 
-    gamma = discount_q * norm.pdf(d1) / (S * sigma * np.sqrt(T))
-    vega = S * discount_q * norm.pdf(d1) * np.sqrt(T)
-
-    if option_type == "call":
-        delta = discount_q * norm.cdf(d1)
-        theta = (
-            -S * discount_q * norm.pdf(d1) * sigma / (2 * np.sqrt(T))
-            - r * K * discount_r * norm.cdf(d2)
-            + q * S * discount_q * norm.cdf(d1)
-        )
-        rho = K * T * discount_r * norm.cdf(d2)
-    else:
-        delta = -discount_q * norm.cdf(-d1)
-        theta = (
-            -S * discount_q * norm.pdf(d1) * sigma / (2 * np.sqrt(T))
-            + r * K * discount_r * norm.cdf(-d2)
-            - q * S * discount_q * norm.cdf(-d1)
-        )
-        rho = -K * T * discount_r * norm.cdf(-d2)
-
+    density = np.exp(-0.5 * d1**2) / np.sqrt(2.0 * np.pi)
+    sign = 1 if option_type == "call" else -1
+    nd1, nd2 = ndtr(sign * d1), ndtr(sign * d2)
     return {
-        "delta": float(delta),
-        "gamma": float(gamma),
-        "theta": float(theta),
-        "vega": float(vega),
-        "rho": float(rho),
+        "delta": sign * discount_q * nd1,
+        "gamma": discount_q * density / (S * stddev),
+        "theta": (
+            -S * discount_q * density * sigma / (2 * sqrt_t)
+            + sign * (q * S * discount_q * nd1 - r * K * discount_r * nd2)
+        ),
+        "vega": S * discount_q * density * sqrt_t,
+        "rho": sign * K * T * discount_r * nd2,
     }
+
+
+def black_scholes_greeks(S, K, T, r, sigma, option_type="call", q=0.0):
+    """Compute European option Greeks for scalar inputs.
+
+    Theta is per year of calendar-time passage. Vega and rho are per
+    unit change in decimal volatility and continuous decimal rate.
+    """
+    option_type = _option_type(option_type)
+    values = _scalar_option_inputs(S, K, T, r, sigma, q, greeks=True)
+    greeks = _black_scholes_greeks(*values, option_type=option_type)
+    return {name: float(value) for name, value in greeks.items()}

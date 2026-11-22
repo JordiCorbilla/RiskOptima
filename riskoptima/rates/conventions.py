@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from calendar import monthrange
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -22,8 +23,9 @@ _DAY_COUNT_ALIASES = {
     "ACT365F": "ACT/365F",
     "ACTUAL/365F": "ACT/365F",
     "30/360": "30/360",
-    "30/360 US": "30/360",
-    "30U/360": "30/360",
+    "30/360 BOND BASIS": "30/360",
+    "30/360 US": "30/360 US",
+    "30U/360": "30/360 US",
 }
 
 
@@ -37,9 +39,15 @@ def normalize_day_count(convention: str) -> str:
 
 
 def year_fraction(start_date, end_date, convention: str = "ACT/360") -> float:
-    """Return the year fraction between two dates under a market convention."""
-    start = pd.Timestamp(start_date).normalize()
-    end = pd.Timestamp(end_date).normalize()
+    """Return a calendar-date accrual fraction under a market convention.
+
+    The bare 30/360 alias retains Bond Basis. Select 30/360 US (30U/360)
+    for the U.S. rules that also adjust end-of-February dates.
+    """
+    start_ts, end_ts = pd.Timestamp(start_date), pd.Timestamp(end_date)
+    if pd.isna(start_ts) or pd.isna(end_ts):
+        raise ValueError("start_date and end_date must be valid calendar dates")
+    start, end = start_ts.date(), end_ts.date()
     if end < start:
         raise ValueError("end_date must be on or after start_date")
 
@@ -51,6 +59,10 @@ def year_fraction(start_date, end_date, convention: str = "ACT/360") -> float:
 
     start_day = min(start.day, 30)
     end_day = end.day
+    if day_count == "30/360 US" and start.month == 2 and start.day == monthrange(start.year, 2)[1]:
+        start_day = 30
+        if end.month == 2 and end_day == monthrange(end.year, 2)[1]:
+            end_day = 30
     if start_day == 30 and end_day == 31:
         end_day = 30
     days_360 = 360 * (end.year - start.year) + 30 * (end.month - start.month) + end_day - start_day

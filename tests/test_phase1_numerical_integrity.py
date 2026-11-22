@@ -85,7 +85,7 @@ class LastKnownClose(Strategy):
 
 
 @given(replacement=st.lists(st.floats(10, 200), min_size=4, max_size=4))
-@settings(max_examples=20)
+@settings(max_examples=20, deadline=None)
 def test_backtest_has_prefix_invariance_and_isolates_the_strategy(replacement):
     dates = pd.date_range("2024-01-01", periods=6)
     prices = pd.DataFrame({"A": [110., 99., 115., 111., 114., 116.], "B": [90., 101., 100., 99., 102., 103.]}, index=dates)

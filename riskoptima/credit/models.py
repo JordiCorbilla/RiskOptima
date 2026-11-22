@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import numpy as np
 from scipy.stats import norm
-from sklearn.linear_model import LogisticRegression
 
 
 def logistic_pd_model(X_train, y_train):
     """
     Fits a logistic regression probability-of-default model.
     """
+    from sklearn.linear_model import LogisticRegression
+
     model = LogisticRegression(max_iter=1000)
     return model.fit(X_train, y_train)
 

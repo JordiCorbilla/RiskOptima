@@ -13,7 +13,6 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 
 from riskoptima.optim.covariance import _tag_covariance, _validate_covariance, _validate_periods_per_year
 
@@ -26,6 +25,8 @@ class FactorRiskModel:
     specific_var: Optional[pd.Series] = None
 
     def fit(self, asset_returns: pd.DataFrame):
+        import statsmodels.api as sm
+
         assets = pd.DataFrame(asset_returns).apply(pd.to_numeric, errors="coerce")
         factors = pd.DataFrame(self.factor_returns).apply(pd.to_numeric, errors="coerce")
         assets = assets.replace([np.inf, -np.inf], np.nan)

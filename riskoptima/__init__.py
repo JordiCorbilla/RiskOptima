@@ -13,8 +13,9 @@
 # Created Date: 2025
 # ---------------------------------------------------------------------------
 
+from typing import TYPE_CHECKING
+
 from ._version import __version__
-from .riskoptima import RiskOptima
 from .core import MarketData, Portfolio, BacktestConfig, RiskReport
 from .risk import (
     FactorRiskModel,
@@ -51,6 +52,24 @@ from .rates import (
     price_fixed_rate_bond,
     reprice_curve_instruments,
 )
+
+
+if TYPE_CHECKING:
+    from .riskoptima import RiskOptima as RiskOptima
+
+
+def __getattr__(name: str):
+    if name != "RiskOptima":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from .riskoptima import RiskOptima
+
+    globals()[name] = RiskOptima
+    return RiskOptima
+
+
+def __dir__() -> list[str]:
+    return sorted(globals().keys() | {"RiskOptima"})
+
 
 __all__ = [
     "RiskOptima",

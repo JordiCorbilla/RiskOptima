@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
@@ -455,6 +454,8 @@ def plot_yield_curve(
 ):
     """Plot zero and short forward rates with calibrated curve knots."""
     if ax is None:
+        import matplotlib.pyplot as plt
+
         _, ax = plt.subplots(figsize=(10, 5.5))
     if tenors is None:
         tenors = np.linspace(max(0.01, curve.tenors[1] / 10), curve.tenors[-1], 240)

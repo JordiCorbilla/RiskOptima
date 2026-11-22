@@ -40,3 +40,20 @@ Covariance helpers:
 - `ledoit_wolf_covariance`
 - `nearest_psd`
 
+
+
+## Legacy Monte Carlo allocation
+
+Set `enforce_allocation_bounds=True` on
+`RiskOptima.perform_mean_variance_optimization` to apply
+`min_allocation` and `max_allocation` to the final portfolio. The limits
+must allow a fully invested, long-only portfolio. The optimizer evaluates
+the bounded minimum-variance portfolio alongside feasible random candidates
+and selects the highest sampled Sharpe ratio within the annualized
+volatility cap. A fixed `random_state` makes the sampling reproducible.
+
+The compatibility default applies the bounds to the draws before
+normalization. It emits a FutureWarning when the result exceeds the
+requested limits. For the machine-learning portfolio workflow, use the same
+opt-in with `min_weight` and `max_weight`. Its `num_portfolios` argument
+sets the random sampling budget for each of the two allocations.

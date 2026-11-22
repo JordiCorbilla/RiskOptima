@@ -48,8 +48,22 @@ def _close_frame(prices) -> pd.DataFrame:
         data.columns = ["Close"]
     else:
         raise ValueError("prices must contain a Close column or a single price column")
-    data["Close"] = pd.to_numeric(data["Close"], errors="coerce")
-    return data.dropna(subset=["Close"])
+    data = _ordered_closes(data)
+    if isinstance(prices, (pd.Series, pd.DataFrame)):
+        data.attrs.update(prices.attrs)
+    return data
+
+
+def _ordered_closes(data: pd.DataFrame) -> pd.DataFrame:
+    if not data.index.is_unique or data.index.hasnans:
+        raise ValueError("price rows must have unique, non-missing index values")
+    data = data.copy()
+    close = pd.to_numeric(data["Close"], errors="coerce")
+    data["Close"] = close.where(np.isfinite(close))
+    data = data.dropna(subset=["Close"]).sort_index()
+    if data["Close"].le(0).any():
+        raise ValueError("close prices must be positive")
+    return data
 
 
 def download_close_prices(ticker: str, start: str, end: str) -> pd.DataFrame:
@@ -58,7 +72,10 @@ def download_close_prices(ticker: str, start: str, end: str) -> pd.DataFrame:
     """
     import yfinance as yf
 
-    return yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)[["Close"]].copy()
+    prices = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)[["Close"]].copy()
+    prices.attrs.update(source="Yahoo Finance", symbol=ticker, price_field="Close", auto_adjust=False,
+                        index_role="session_date")
+    return prices
 
 
 def build_sma_signal_frame(prices, short_window: int = 20, long_window: int = 50) -> pd.DataFrame:
@@ -84,7 +101,41 @@ def build_sma_signal_frame(prices, short_window: int = 20, long_window: int = 50
     df["Signal"] = 0
     df.loc[bullish, "Signal"] = 1
     df.loc[bearish, "Signal"] = -1
+    df.attrs["signal_observation"] = "close"
     return df
+
+
+def _sma_order(entry, price, signal, stop_loss, take_profit):
+    if entry is None:
+        return "Buy Signal" if signal == 1 else None
+    if signal == -1:
+        return "Sell Signal"
+    pnl = (price - entry[1]) / entry[1]
+    if stop_loss is not None and pnl <= -stop_loss:
+        return "Stop Loss"
+    if take_profit is not None and pnl >= take_profit:
+        return "Take Profit"
+    return None
+
+
+def _fill_sma_order(trades, ticker, order, entry, date, price):
+    if order is None:
+        return entry
+    if entry is None:
+        return date, price
+    entry_date, entry_price = entry
+    trades.append(
+        {
+            "Ticker": ticker,
+            "Entry Date": entry_date,
+            "Exit Date": date,
+            "Entry Price": entry_price,
+            "Exit Price": price,
+            "Return": (price - entry_price) / entry_price,
+            "Exit Reason": order,
+        }
+    )
+    return None
 
 
 def trades_from_sma_signals(
@@ -92,51 +143,45 @@ def trades_from_sma_signals(
     ticker: str,
     stop_loss: float | None = None,
     take_profit: float | None = None,
+    *,
+    execution: str = "same_close",
 ) -> pd.DataFrame:
+    """Convert crossover signals and close-based risk triggers to a trade log.
+
+    The compatibility default fills at the signal close. Use next_close
+    for signals observed at the close. It fills at the next available
+    close, including exits triggered by stops or take profits. Missing
+    closes cannot trigger or fill an order. Returns contain closed trades.
     """
-    Converts SMA entry/exit signals into a long-only trade log.
-    """
-    required = {"Close", "Signal"}
-    missing = required - set(signal_frame.columns)
+    missing = {"Close", "Signal"} - set(signal_frame.columns)
     if missing:
         raise ValueError(f"signal_frame is missing required columns: {sorted(missing)}")
+    if execution not in {"same_close", "next_close"}:
+        raise ValueError("execution must be 'same_close' or 'next_close'")
+    for parameter, threshold in (("stop_loss", stop_loss), ("take_profit", take_profit)):
+        if threshold is not None and (not np.isfinite(threshold) or threshold < 0):
+            raise ValueError(f"{parameter} must be non-negative and finite")
 
-    trades = []
-    position = None
-    entry_price = None
-    entry_date = None
+    bars = _ordered_closes(signal_frame.loc[:, ["Close", "Signal"]])
+    if not bars["Signal"].isin([-1, 0, 1]).all():
+        raise ValueError("Signal must contain only -1, 0, or 1")
+    trades: list[dict] = []
+    entry = None
+    pending = None
+    for date, close, signal in bars.itertuples():
+        price = float(close)
+        if execution == "next_close":
+            entry = _fill_sma_order(trades, ticker, pending, entry, date, price)
+        order = _sma_order(entry, price, signal, stop_loss, take_profit)
+        if execution == "same_close":
+            entry = _fill_sma_order(trades, ticker, order, entry, date, price)
+        else:
+            pending = order
 
-    for exit_date, row in signal_frame.iterrows():
-        price = float(row["Close"])
-        signal = int(row["Signal"])
-
-        if position is None and signal == 1:
-            position = "long"
-            entry_price = price
-            entry_date = exit_date
-        elif position == "long":
-            assert entry_price is not None
-            pnl = (price - entry_price) / entry_price
-            hit_stop = stop_loss is not None and pnl <= -stop_loss
-            hit_take = take_profit is not None and pnl >= take_profit
-
-            if signal == -1 or hit_stop or hit_take:
-                trades.append(
-                    {
-                        "Ticker": ticker,
-                        "Entry Date": entry_date,
-                        "Exit Date": exit_date,
-                        "Entry Price": entry_price,
-                        "Exit Price": price,
-                        "Return": pnl,
-                        "Exit Reason": (
-                            "Sell Signal" if signal == -1 else "Stop Loss" if hit_stop else "Take Profit"
-                        ),
-                    }
-                )
-                position = None
-
-    return pd.DataFrame(trades, columns=TRADE_COLUMNS)
+    result = pd.DataFrame(trades, columns=TRADE_COLUMNS)
+    result.attrs.update(signal_frame.attrs)
+    result.attrs["execution"] = execution
+    return result
 
 
 def run_sma_strategy_with_risk(
@@ -148,13 +193,17 @@ def run_sma_strategy_with_risk(
     short_window: int = 20,
     long_window: int = 50,
     prices: pd.DataFrame | None = None,
+    *,
+    execution: str = "same_close",
 ) -> pd.DataFrame:
     """
     Runs an SMA crossover strategy for one ticker and returns a trade log.
     """
     price_data = prices if prices is not None else download_close_prices(ticker, start, end)
     signals = build_sma_signal_frame(price_data, short_window=short_window, long_window=long_window)
-    return trades_from_sma_signals(signals, ticker=ticker, stop_loss=stop_loss, take_profit=take_profit)
+    return trades_from_sma_signals(
+        signals, ticker=ticker, stop_loss=stop_loss, take_profit=take_profit, execution=execution,
+    )
 
 
 def run_strategy_on_portfolio(
@@ -165,6 +214,8 @@ def run_strategy_on_portfolio(
     take_profit: float | None = None,
     short_window: int = 20,
     long_window: int = 50,
+    *,
+    execution: str = "same_close",
 ) -> pd.DataFrame:
     """
     Runs the SMA strategy across an asset table with Asset and Weight columns.
@@ -182,6 +233,7 @@ def run_strategy_on_portfolio(
             take_profit=take_profit,
             short_window=short_window,
             long_window=long_window,
+            execution=execution,
         )
         if trades_df.empty:
             continue
@@ -273,6 +325,8 @@ def run_and_plot_sma_strategy(
     take_profit=None,
     short_window: int = 20,
     long_window: int = 50,
+    *,
+    execution: str = "same_close",
 ):
     """
     Runs and plots SMA signals plus cumulative weighted trade returns.
@@ -286,6 +340,7 @@ def run_and_plot_sma_strategy(
         take_profit=take_profit,
         short_window=short_window,
         long_window=long_window,
+        execution=execution,
     )
 
     for ticker in asset_table["Asset"]:

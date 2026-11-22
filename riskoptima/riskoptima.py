@@ -243,7 +243,10 @@ class RiskOptima:
     @staticmethod
     def annualize_volatility(returns, periods_per_year):
         """
-        Annualizes the volatility of a set of returns
+        Annualize volatility with the specified number of observations per year.
+
+        Uses the input's standard deviation convention: sample for pandas
+        inputs and population for NumPy arrays.
         """
         return returns.std(axis=0) * (periods_per_year**0.5)
 
@@ -1125,10 +1128,10 @@ class RiskOptima:
 
     @staticmethod
     def discount_v2(t, r, freq):
-        """
-        Compute the price of a pure discount bond that pays a dollar at time period t
-        and r is the per-period interest rate
-        returns a DataFrame indexed by t
+        """Discount year-valued times using a nominal annual rate.
+
+        The rate r compounds freq times per year.
+        The resulting DataFrame is indexed by the input times.
         """
         discounts = pd.DataFrame([(1 + r / freq) ** -(t * freq) for t in t],
                                  index=t, columns=['df'])
@@ -1426,63 +1429,96 @@ class RiskOptima:
         return stock_data
 
     @staticmethod
-    def perform_mean_variance_optimization(tickers, start_date, end_date,
-                                           max_acceptable_volatility,
-                                           predefined_returns=None,
-                                           min_allocation=0.01,
-                                           max_allocation=0.35,
-                                           num_simulations=100000):
-        """
-        Execute mean-variance optimization using Monte Carlo simulation with weight constraints.
+    def perform_mean_variance_optimization(
+        tickers, start_date, end_date, max_acceptable_volatility, predefined_returns=None,
+        min_allocation=0.01, max_allocation=0.35, num_simulations=100000, *,
+        enforce_allocation_bounds=False, random_state=None,
+    ):
+        """Return sampled maximum-Sharpe weights in ticker order.
 
-        :param list tickers: List of stock ticker symbols to optimize.
-        :param str start_date: Start date for the historical data in 'YYYY-MM-DD' format.
-        :param str end_date: End date for the historical data in 'YYYY-MM-DD' format.
-        :param float max_acceptable_volatility: Maximum allowable annualized volatility for the portfolio.
-        :param ndarray predefined_returns: (Optional) Predefined annualized returns for the tickers.
-        :param float min_allocation: Minimum weight allocation for each stock.
-        :param float max_allocation: Maximum weight allocation for each stock.
-        :param int num_simulations: Number of Monte Carlo simulations to run.
-        :return: Optimal portfolio weights as a numpy array.
+        Expected returns, covariance and the volatility cap are annualized on
+        the legacy trading-day basis. Supply an array in ticker order or a
+        Series indexed by ticker for predefined expected returns.
+
+        Pass enforce_allocation_bounds=True to impose the limits on final
+        long-only weights. The default applies limits to the draws before
+        normalizing, and warns when the chosen weights exceed those limits.
+        A supplied random_state uses a separate NumPy random generator.
         """
-        price_data = RiskOptima.fetch_historical_stock_prices(tickers, start_date, end_date)['Close']
+        from riskoptima.optim.mean_variance import _bounded_monte_carlo_weights
+
+        assets = pd.Index([tickers] if isinstance(tickers, str) else tickers)
+        if assets.empty or not assets.is_unique:
+            raise ValueError("tickers must contain unique asset labels")
+        if not np.isfinite(max_acceptable_volatility) or max_acceptable_volatility < 0:
+            raise ValueError("max_acceptable_volatility must be finite and non-negative")
+        if not isinstance(num_simulations, (int, np.integer)) or num_simulations <= 0:
+            raise ValueError("num_simulations must be a positive integer")
+        if not np.isfinite([min_allocation, max_allocation]).all() or min_allocation > max_allocation:
+            raise ValueError("allocation bounds must be finite and ordered")
+        equal_weight = 1.0 / len(assets)
+        if enforce_allocation_bounds and not 0 <= min_allocation <= equal_weight <= max_allocation <= 1:
+            raise ValueError("allocation bounds must admit a fully invested long-only portfolio")
+
+        price_data = RiskOptima.fetch_historical_stock_prices(assets.tolist(), start_date, end_date)['Close']
         if price_data.empty:
             raise ValueError("No historical data retrieved. Verify the tickers and date range.")
-        price_data = pd.DataFrame(price_data).reindex(columns=tickers)
+        if isinstance(price_data, pd.Series) and len(assets) == 1:
+            price_data = price_data.to_frame(name=assets[0])
+        price_data = pd.DataFrame(price_data).reindex(columns=assets).sort_index()
+        price_data = price_data.replace([np.inf, -np.inf], np.nan)
+        if not price_data.index.is_unique or (price_data <= 0).any().any():
+            raise ValueError("Historical prices must be positive and timestamps must be unique")
         missing_prices = price_data.columns[price_data.notna().sum().lt(2)].tolist()
         if missing_prices:
             raise ValueError(f"Historical prices require at least two observations for: {missing_prices}")
         daily_returns = price_data.pct_change(fill_method=None).dropna()
         if len(daily_returns) < 2:
             raise ValueError("At least two complete return observations are required")
+
         if predefined_returns is None:
             predefined_returns = daily_returns.mean() * RiskOptima.TRADING_DAYS
+        if isinstance(predefined_returns, pd.Series) and not isinstance(predefined_returns.index, pd.RangeIndex):
+            if not predefined_returns.index.is_unique:
+                raise ValueError("predefined_returns must have unique asset labels")
+            predefined_returns = predefined_returns.reindex(assets)
+        expected_returns = np.asarray(predefined_returns, dtype=float)
+        if expected_returns.shape != (len(assets),) or not np.isfinite(expected_returns).all():
+            raise ValueError("predefined_returns must provide one finite annual return per asset")
 
-        covariance_matrix = daily_returns.cov() * RiskOptima.TRADING_DAYS
-        simulation_results = np.zeros((4, num_simulations))
-        weight_matrix = np.zeros((len(tickers), num_simulations))
+        covariance = daily_returns.cov() * RiskOptima.TRADING_DAYS
+        rng = np.random if random_state is None else np.random.default_rng(random_state)
+        if enforce_allocation_bounds:
+            return _bounded_monte_carlo_weights(
+                expected_returns, covariance, max_acceptable_volatility,
+                min_allocation, max_allocation, num_simulations, rng,
+            )
 
-        for i in range(num_simulations):
-            random_weights = np.random.uniform(min_allocation, max_allocation, len(tickers))
-            random_weights /= np.sum(random_weights)
-
-            weight_matrix[:, i] = random_weights
-
-            portfolio_return = np.sum(random_weights * predefined_returns)
-            portfolio_volatility = np.sqrt(np.dot(random_weights.T, np.dot(covariance_matrix, random_weights)))
-            sharpe_ratio = portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0
-
-            simulation_results[:, i] = [portfolio_return, portfolio_volatility, sharpe_ratio, i]
-
-        result_columns = ['Annualized Return', 'Annualized Volatility', 'Sharpe Ratio', 'Simulation Index']
-        simulation_results_df = pd.DataFrame(simulation_results.T, columns=result_columns)
-
-        feasible_portfolios = simulation_results_df[simulation_results_df['Annualized Volatility'] <= max_acceptable_volatility]
-        if feasible_portfolios.empty:
+        covariance_values = covariance.to_numpy()
+        best_score = -np.inf
+        best_weights = None
+        for _ in range(num_simulations):
+            weights = rng.uniform(min_allocation, max_allocation, len(assets))
+            total = weights.sum()
+            if total == 0:
+                continue
+            weights /= total
+            volatility = np.sqrt(max(float(weights @ covariance_values @ weights), 0.0))
+            if volatility <= max_acceptable_volatility:
+                score = float(weights @ expected_returns) / volatility if volatility > 0 else 0.0
+                if best_weights is None or score > best_score:
+                    best_score = score
+                    best_weights = weights
+        if best_weights is None:
             raise ValueError("No portfolio satisfies the maximum volatility constraint.")
-
-        optimal_index = feasible_portfolios['Sharpe Ratio'].idxmax()
-        return weight_matrix[:, int(optimal_index)]
+        if (best_weights < min_allocation - 1e-12).any() or (best_weights > max_allocation + 1e-12).any():
+            warnings.warn(
+                "Legacy allocation limits apply to draws before normalization and may be exceeded. "
+                "Pass enforce_allocation_bounds=True to constrain final weights.",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return best_weights
 
     @staticmethod
     def add_features(stock_prices):
@@ -2554,7 +2590,9 @@ class RiskOptima:
         market_benchmark=['SPY'],
         max_volatility=0.15,
         min_weight=0.03,
-        max_weight=0.2
+        max_weight=0.2,
+        *,
+        enforce_allocation_bounds=False,
     ):
         """
         Run portfolio optimization using machine learning and mean-variance optimization.
@@ -2569,7 +2607,8 @@ class RiskOptima:
             training_start_date (str): Start date for training data in 'YYYY-MM-DD' format.
             training_end_date (str): End date for training data in 'YYYY-MM-DD' format.
             risk_free_rate (float): Risk-free rate used in performance calculations.
-            num_portfolios (int): (Optional) Number of portfolios to simulate (if needed).
+            num_portfolios (int): Number of random candidates for each allocation.
+            enforce_allocation_bounds (bool): Apply min_weight and max_weight to final allocations.
             market_benchmark (list): List of market benchmark tickers (e.g. ['SPY']).
             max_volatility (float): Maximum allowed portfolio volatility.
             min_weight (float): Minimum allocation weight per asset.
@@ -2617,10 +2656,15 @@ class RiskOptima:
         # Calculate tickers and original weights from the portfolio dictionary.
         tickers, weights = RiskOptima.calculate_portfolio_allocation(portfolio)
 
-        # --- Mean-Variance Optimization ---
+        allocation_settings = dict(
+            max_acceptable_volatility=max_volatility,
+            min_allocation=min_weight,
+            max_allocation=max_weight,
+            num_simulations=num_portfolios,
+            enforce_allocation_bounds=enforce_allocation_bounds,
+        )
         optimized_weights_mv = RiskOptima.perform_mean_variance_optimization(
-            tickers, training_start_date, training_end_date,
-            max_volatility, min_allocation=min_weight, max_allocation=max_weight
+            tickers, training_start_date, training_end_date, **allocation_settings,
         )
 
         # --- Machine Learning Prediction for Adjusted Returns ---
@@ -2653,8 +2697,8 @@ class RiskOptima:
         adjusted_returns_vector = np.array([predicted_returns[ticker] for ticker in tickers])
 
         optimized_weights_ml_mv = RiskOptima.perform_mean_variance_optimization(
-            tickers, training_start_date, training_end_date,
-            max_volatility, adjusted_returns_vector, min_weight, max_weight
+            tickers, training_start_date, training_end_date, predefined_returns=adjusted_returns_vector,
+            **allocation_settings,
         )
 
         # --- Backtesting ---
@@ -2882,20 +2926,12 @@ class RiskOptima:
 
     @staticmethod
     def black_scholes(S, X, T, r, sigma):
-        """
-        Computes the Black-Scholes option price for a European call option.
+        """Price a European call with scalar or broadcastable NumPy inputs."""
+        from riskoptima.options.black_scholes import _black_scholes_price, _validate_option_inputs
 
-        :param float S: Current price of the underlying asset.
-        :param float X: Strike price of the option.
-        :param float T: Time to expiration in years.
-        :param float r: Risk-free interest rate.
-        :param float sigma: Volatility of the underlying asset.
-        :return: The calculated call option price as a float.
-        """
-        d1 = (np.log(S / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-        call_price = S * si.norm.cdf(d1) - X * np.exp(-r * T) * si.norm.cdf(d2)
-        return call_price
+        values = np.broadcast_arrays(S, X, T, r, sigma, 0.0)
+        _validate_option_inputs(values)
+        return _black_scholes_price(*values, option_type="call")
 
     @staticmethod
     def heston(S_0, X, T, r, kappa, theta, sigma_v, rho, v_0, num_simulations=10000, num_steps=100):
@@ -3507,7 +3543,10 @@ class RiskOptima:
         return corr_matrix
     
     @staticmethod    
-    def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float | None = None, take_profit: float | None = None):
+    def run_sma_strategy_with_risk(
+        ticker: str, start: str, end: str, stop_loss: float | None = None,
+        take_profit: float | None = None, *, execution: str = "same_close",
+    ):
         from riskoptima.backtest.sma import run_sma_strategy_with_risk
 
         return run_sma_strategy_with_risk(
@@ -3516,11 +3555,14 @@ class RiskOptima:
             end=end,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution=execution,
         )
     
     @staticmethod 
-    def run_strategy_on_portfolio(asset_table: pd.DataFrame, start: str, end: str,
-                                  stop_loss: float | None = None, take_profit: float | None = None):
+    def run_strategy_on_portfolio(
+        asset_table: pd.DataFrame, start: str, end: str, stop_loss: float | None = None,
+        take_profit: float | None = None, *, execution: str = "same_close",
+    ):
         from riskoptima.backtest.sma import run_strategy_on_portfolio
 
         return run_strategy_on_portfolio(
@@ -3529,6 +3571,7 @@ class RiskOptima:
             end=end,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution=execution,
         )
     
     @staticmethod 
@@ -3544,7 +3587,7 @@ class RiskOptima:
         return plot_sma_strategy_trades(signal_frame=df, ticker=ticker)
         
     @staticmethod 
-    def run_and_plot_sma_strategy(tickers, start_date, end_date, stop_loss=None, take_profit=None):
+    def run_and_plot_sma_strategy(tickers, start_date, end_date, stop_loss=None, take_profit=None, *, execution="same_close"):
         from riskoptima.backtest.sma import run_and_plot_sma_strategy
 
         return run_and_plot_sma_strategy(
@@ -3553,6 +3596,7 @@ class RiskOptima:
             end_date=end_date,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution=execution,
         )
     
     @staticmethod
@@ -3675,22 +3719,28 @@ class RiskOptima:
     # === GREEKS SIMULATOR ===
     @staticmethod
     def black_scholes_greeks(S, K, T, r, sigma, option_type='call'):
-        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-    
-        if option_type == 'call':
-            delta = norm.cdf(d1)
-            theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(d2)) / 365
-        else:
-            delta = -norm.cdf(-d1)
-            theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)) / 365
-    
-        gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
-        vega = S * norm.pdf(d1) * np.sqrt(T) / 100
-    
-        return delta, gamma, theta, vega
-    
-    
+        """Return (delta, gamma, theta per calendar day, vega per percentage point).
+
+        Broadcastable NumPy inputs are supported. A positive maturity and
+        volatility are required.
+        """
+        from riskoptima.options.black_scholes import _validate_option_inputs
+        from riskoptima.options.greeks import _black_scholes_greeks
+
+        if option_type not in ("call", "put"):
+            warnings.warn(
+                "Treating an unrecognized legacy option_type as a put is deprecated. "
+                "Use 'call' or 'put' explicitly.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            option_type = "put"
+        values = np.broadcast_arrays(S, K, T, r, sigma, 0.0)
+        _validate_option_inputs(values, greeks=True)
+        result = _black_scholes_greeks(*values, option_type=option_type)
+        # The simulator and Platform notebook view display daily theta and 1%-point vega.
+        return result["delta"], result["gamma"], result["theta"] / 365.0, result["vega"] / 100.0
+
     @staticmethod
     def greeks_simulator(S=192.82, T_days=20, r=0.05, sigma=0.35, option_type='call'):
         T = T_days / 365
