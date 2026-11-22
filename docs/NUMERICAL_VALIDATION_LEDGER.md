@@ -45,3 +45,17 @@ See [test_legacy_allocation_bounds.py](../tests/test_legacy_allocation_bounds.py
 | Legacy default | Independent normalization, quadratic variance and argmax of the seeded draws | Seed 9, 40 draws, raw bounds [0.01, 0.35], annual means [0.02, 0.13] | [0.256532754652, 0.743467245348] and warning about the breached bound | Same weights and expected warning | Exact seed replay | Pass |
 | Budget and feasible bounds | Long-only investment budget and component inequalities | 25 generated cases with up to 30 assets, plus a two-asset cap of 0.50 per asset | Weights sum to one and satisfy interval, boundary [0.5, 0.5] | All inequalities and boundary satisfied | 1e-12 on sums, exact interval | Pass |
 | Infeasible portfolio | Sum of upper bounds and analytical minimum variance | Two assets with default cap 0.35 each, or a volatility cap below the independent minimum | Reject infeasible bounds and volatility caps | Expected errors | Exact failure mode | Pass |
+
+
+## 22 November 2026 — SMA execution timing
+
+See [test_sma_execution_timing.py](../tests/test_sma_execution_timing.py).
+The event and trade-log comparison uses a single symbol, daily evaluation
+and zero transaction costs.
+
+| Model or invariant | Reference | Input | Expected | Actual | Tolerance | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Next-close crossover | Manually compute SMA(1) and SMA(2) crossings, then execute on the next close | [102, 100, 99, 103, 105, 100, 97, 98, 97] from 5 January 2026 | Entry 9 January at 105, exit 13 January at 97, return -0.076190476190, equity 923.809523809524 from 1,000 | Exact dates and prices, same return and event-engine equity | 1e-12 return, 1e-10 equity | Pass |
+| Legacy same-close mode | Execute on the observed crossover rows | Same closes | Entry 8 January at 103, exit 12 January at 100, return -0.029126213592 | Exact dates and prices, same return | 1e-12 return | Pass |
+| Stop through a missing close | Queue an exit at the 96 close after entry at 105. Wait through a missing quote. | Stop 5%, next available exit price 90 | Fill 90, return -0.142857142857, no closed trade if data ends without a quote | Same trigger reason, price and return | 1e-12 return | Pass |
+| Take profit through a gap | Queue an exit at the 112 close after entry at 101 | Take 10%, next available exit price 126 | Fill 126, return 0.247524752475 | Same trigger reason, price and return | 1e-12 return | Pass |

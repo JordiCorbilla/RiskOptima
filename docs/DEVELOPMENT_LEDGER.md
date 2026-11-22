@@ -56,9 +56,23 @@ calls. The classifier, chart, factor and public API tests passed, along with
 the full 197-test suite and six Platform backend tests. Coverage was 69.4655%
 of executable lines and 57.9376% of branches.
 
+## 22 November 2026 — SMA execution and source tags
+
+The legacy SMA trade-log APIs and facade now offer explicit next-close
+execution. The same-close mode remains the compatibility default. Pending
+orders fill at a subsequent positive, finite close. Stops and takes are
+also observed at the close and become pending exits in next-close mode.
+The Yahoo adapter tags the session-date index and extraction settings. The
+single-asset signal frame and trade log preserve the tags.
+
+Validated timestamps and closing equity against the event engine and
+hand-calculated a stop through a missing quote and a take-profit gap.
+Notebook 05 ran live against this branch. The full suite passed 202 tests.
+Daily closes still leave intraday ordering and vendor publication or
+revision times unverified.
+
 ## Next outstanding item
 
-Reconcile SMA execution timing in Phase 2.3. Preserve the legacy
-same-close trade log for established callers and provide a causal alternative
-for signals observed at the close. Independently compare its entries and
-exits to the event engine through a deterministic price path.
+Add an out-of-sample, fixed-parameter HMM filter. Validate its continued
+posterior against an independent forward recursion and enforce the
+training cutoff when dated inputs are available.

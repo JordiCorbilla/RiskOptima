@@ -3543,7 +3543,10 @@ class RiskOptima:
         return corr_matrix
     
     @staticmethod    
-    def run_sma_strategy_with_risk(ticker: str, start: str, end: str, stop_loss: float | None = None, take_profit: float | None = None):
+    def run_sma_strategy_with_risk(
+        ticker: str, start: str, end: str, stop_loss: float | None = None,
+        take_profit: float | None = None, *, execution: str = "same_close",
+    ):
         from riskoptima.backtest.sma import run_sma_strategy_with_risk
 
         return run_sma_strategy_with_risk(
@@ -3552,11 +3555,14 @@ class RiskOptima:
             end=end,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution=execution,
         )
     
     @staticmethod 
-    def run_strategy_on_portfolio(asset_table: pd.DataFrame, start: str, end: str,
-                                  stop_loss: float | None = None, take_profit: float | None = None):
+    def run_strategy_on_portfolio(
+        asset_table: pd.DataFrame, start: str, end: str, stop_loss: float | None = None,
+        take_profit: float | None = None, *, execution: str = "same_close",
+    ):
         from riskoptima.backtest.sma import run_strategy_on_portfolio
 
         return run_strategy_on_portfolio(
@@ -3565,6 +3571,7 @@ class RiskOptima:
             end=end,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution=execution,
         )
     
     @staticmethod 
@@ -3580,7 +3587,7 @@ class RiskOptima:
         return plot_sma_strategy_trades(signal_frame=df, ticker=ticker)
         
     @staticmethod 
-    def run_and_plot_sma_strategy(tickers, start_date, end_date, stop_loss=None, take_profit=None):
+    def run_and_plot_sma_strategy(tickers, start_date, end_date, stop_loss=None, take_profit=None, *, execution="same_close"):
         from riskoptima.backtest.sma import run_and_plot_sma_strategy
 
         return run_and_plot_sma_strategy(
@@ -3589,6 +3596,7 @@ class RiskOptima:
             end_date=end_date,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution=execution,
         )
     
     @staticmethod
