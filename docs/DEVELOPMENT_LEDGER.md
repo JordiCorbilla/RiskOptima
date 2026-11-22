@@ -41,9 +41,24 @@ unchanged. Both coverage gates, Ruff and mypy passed. Live notebook 02
 (portfolio optimization) and notebook 06 (options and Greeks) executed
 against the branch.
 
+## 22 November 2026 — Package import boundary
+
+The root package exposes the legacy facade on demand. Its class identity,
+star imports, reflection and pickling are preserved. Standalone option,
+curve and structural credit calculations run without importing the facade,
+Yahoo Finance, plotting or ML dependencies. Curve plotting, factor fitting
+and credit classifier fitting import their own dependencies when requested.
+Legacy callers that explicitly import RiskOptima still load its existing
+plotting and vendor adapters.
+
+Fresh-process tests blocked adapter imports and ran representative numeric
+calls. The classifier, chart, factor and public API tests passed, along with
+the full 197-test suite and six Platform backend tests. Coverage was 69.4655%
+of executable lines and 57.9376% of branches.
+
 ## Next outstanding item
 
-Start Phase 2.3 with the package import boundary. Verify that importing and
-using standalone numerical APIs does not initialize the legacy facade,
-network vendors or plotting. Then specify point-in-time data provenance and
-reconcile the separate SMA execution workflows.
+Reconcile SMA execution timing in Phase 2.3. Preserve the legacy
+same-close trade log for established callers and provide a causal alternative
+for signals observed at the close. Independently compare its entries and
+exits to the event engine through a deterministic price path.
