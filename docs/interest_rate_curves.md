@@ -85,3 +85,18 @@ Run `examples/example_institutional_sofr_curves.py` for an end-to-end example wi
 ## Model Scope
 
 The dated OIS bootstrap uses single-curve par-swap identities and explicit simple-compounded forward intervals. Futures convexity adjustments are inputs, not estimated by an interest-rate model. The calendar supports supplied holidays but does not ship an exchange holiday database. Cross-currency curves, collateral optionality, and stochastic convexity calibration remain outside this deterministic curve layer.
+
+
+## Rate and day-count compatibility
+
+Discount curves accept continuously compounded zero rates. The legacy
+discount_v2 facade accepts a nominal annual rate compounded at the supplied
+frequency. Convert a nominal rate r compounded m times per year to its
+continuous equivalent with m * log(1 + r/m). The legacy discount helper
+uses an effective rate per input time period.
+
+The bare 30/360 convention retains Bond Basis, including existing schedule
+defaults. Choose 30/360 US or 30U/360 for the additional February month-end
+rules. ACT/360 and ACT/365F count calendar days. An interval from local
+midnight to local midnight across a daylight-saving transition counts as
+one day.

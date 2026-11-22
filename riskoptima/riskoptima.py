@@ -243,7 +243,10 @@ class RiskOptima:
     @staticmethod
     def annualize_volatility(returns, periods_per_year):
         """
-        Annualizes the volatility of a set of returns
+        Annualize volatility with the specified number of observations per year.
+
+        Uses the input's standard deviation convention: sample for pandas
+        inputs and population for NumPy arrays.
         """
         return returns.std(axis=0) * (periods_per_year**0.5)
 
@@ -1125,10 +1128,10 @@ class RiskOptima:
 
     @staticmethod
     def discount_v2(t, r, freq):
-        """
-        Compute the price of a pure discount bond that pays a dollar at time period t
-        and r is the per-period interest rate
-        returns a DataFrame indexed by t
+        """Discount year-valued times using a nominal annual rate.
+
+        The rate r compounds freq times per year.
+        The resulting DataFrame is indexed by the input times.
         """
         discounts = pd.DataFrame([(1 + r / freq) ** -(t * freq) for t in t],
                                  index=t, columns=['df'])
@@ -2882,20 +2885,12 @@ class RiskOptima:
 
     @staticmethod
     def black_scholes(S, X, T, r, sigma):
-        """
-        Computes the Black-Scholes option price for a European call option.
+        """Price a European call with scalar or broadcastable NumPy inputs."""
+        from riskoptima.options.black_scholes import _black_scholes_price, _validate_option_inputs
 
-        :param float S: Current price of the underlying asset.
-        :param float X: Strike price of the option.
-        :param float T: Time to expiration in years.
-        :param float r: Risk-free interest rate.
-        :param float sigma: Volatility of the underlying asset.
-        :return: The calculated call option price as a float.
-        """
-        d1 = (np.log(S / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-        call_price = S * si.norm.cdf(d1) - X * np.exp(-r * T) * si.norm.cdf(d2)
-        return call_price
+        values = np.broadcast_arrays(S, X, T, r, sigma, 0.0)
+        _validate_option_inputs(values)
+        return _black_scholes_price(*values, option_type="call")
 
     @staticmethod
     def heston(S_0, X, T, r, kappa, theta, sigma_v, rho, v_0, num_simulations=10000, num_steps=100):
@@ -3675,22 +3670,28 @@ class RiskOptima:
     # === GREEKS SIMULATOR ===
     @staticmethod
     def black_scholes_greeks(S, K, T, r, sigma, option_type='call'):
-        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-    
-        if option_type == 'call':
-            delta = norm.cdf(d1)
-            theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(d2)) / 365
-        else:
-            delta = -norm.cdf(-d1)
-            theta = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)) / 365
-    
-        gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
-        vega = S * norm.pdf(d1) * np.sqrt(T) / 100
-    
-        return delta, gamma, theta, vega
-    
-    
+        """Return (delta, gamma, theta per calendar day, vega per percentage point).
+
+        Broadcastable NumPy inputs are supported. A positive maturity and
+        volatility are required.
+        """
+        from riskoptima.options.black_scholes import _validate_option_inputs
+        from riskoptima.options.greeks import _black_scholes_greeks
+
+        if option_type not in ("call", "put"):
+            warnings.warn(
+                "Treating an unrecognized legacy option_type as a put is deprecated. "
+                "Use 'call' or 'put' explicitly.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            option_type = "put"
+        values = np.broadcast_arrays(S, K, T, r, sigma, 0.0)
+        _validate_option_inputs(values, greeks=True)
+        result = _black_scholes_greeks(*values, option_type=option_type)
+        # The simulator and Platform notebook view display daily theta and 1%-point vega.
+        return result["delta"], result["gamma"], result["theta"] / 365.0, result["vega"] / 100.0
+
     @staticmethod
     def greeks_simulator(S=192.82, T_days=20, r=0.05, sigma=0.35, option_type='call'):
         T = T_days / 365

@@ -2,7 +2,7 @@
 
 ## Phase 1 — numerical integrity
 
-The patch candidate corrects Merton pricing, event-time access, financial ML validation, covariance and optimization contracts, implied-volatility diagnostics, Markov posteriors, and empirical expected shortfall. The regression suite uses analytical fixtures, QuantLib and Hypothesis. The ledger and coverage floors provide acceptance criteria for future changes. Phase 1 keeps existing entry points and the MIT licence.
+v2.8.2 corrects Merton pricing, event-time access, financial ML validation, covariance and optimization contracts, implied-volatility diagnostics, Markov posteriors, and empirical expected shortfall. The regression suite uses analytical fixtures, QuantLib and Hypothesis. The ledger and coverage floors provide acceptance criteria for future changes. Phase 1 keeps existing entry points and the MIT licence.
 
 | Evidence | Purpose |
 | --- | --- |
@@ -19,6 +19,11 @@ The patch candidate corrects Merton pricing, event-time access, financial ML val
 3. Separate package imports from vendor adapters and plotting. Introduce timestamp and data provenance at the input boundary. Test the legacy SMA and event backtest together for signal time, next executable quote, and intrabar behavior.
 4. Provide a fixed-parameter HMM inference path for an out-of-sample regime evaluation. Stress-test extreme emission ranges and Merton tails. Validate Heston and SABR parameter conventions against independent reference engines.
 5. Increase legacy branch coverage based on decision impact. Raise coverage floors only after new coverage is reproducible across supported Python versions.
+
+
+The [development ledger](DEVELOPMENT_LEDGER.md) tracks the current checkpoint.
+The [numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md) records new
+reference results after v2.8.2.
 
 ## Phase 3 — release readiness
 

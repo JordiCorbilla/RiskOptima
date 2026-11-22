@@ -9,6 +9,8 @@ nav:
   - Optimizer Constraints: optimizer_constraints.md
   - Risk Attribution and Scenarios: risk_attribution_and_scenarios.md
   - RiskOptima 3.0 roadmap: ROADMAP_3_0.md
+  - Development ledger: DEVELOPMENT_LEDGER.md
+  - Numerical validation ledger: NUMERICAL_VALIDATION_LEDGER.md
   - Phase 1 audit:
       - Numerical audit: audit/NUMERICAL_AUDIT.md
       - Architecture audit: audit/ARCHITECTURE_AUDIT.md
