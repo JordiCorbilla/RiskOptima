@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 /.codex-remote-attachments
 BLOG_POST_RISKOPTIMA_2026_UPDATE.md
+publishing.ignore.txt
