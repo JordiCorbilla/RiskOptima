@@ -59,3 +59,15 @@ and zero transaction costs.
 | Legacy same-close mode | Execute on the observed crossover rows | Same closes | Entry 8 January at 103, exit 12 January at 100, return -0.029126213592 | Exact dates and prices, same return | 1e-12 return | Pass |
 | Stop through a missing close | Queue an exit at the 96 close after entry at 105. Wait through a missing quote. | Stop 5%, next available exit price 90 | Fill 90, return -0.142857142857, no closed trade if data ends without a quote | Same trigger reason, price and return | 1e-12 return | Pass |
 | Take profit through a gap | Queue an exit at the 112 close after entry at 101 | Take 10%, next available exit price 126 | Fill 126, return 0.247524752475 | Same trigger reason, price and return | 1e-12 return | Pass |
+
+## 22 November 2026 — Out-of-sample Markov filtering
+
+The tests compare fixed-parameter inference to an independent forward
+recursion in probability space. [Regression tests](../tests/test_markov_out_of_sample.py) · [Rabiner's forward procedure](https://www.ee.columbia.edu/~dpwe/e6820/papers/Rabiner89-hmm.pdf)
+
+| Model or invariant | Reference | Input | Expected | Actual | Tolerance | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Continued filter | Gaussian likelihood and propagated filtered training posterior | Two states, ten training rows, two EM updates, seed 4. Validation [-0.01, missing, 0.025, 0.03]. | First posterior [0.677186320072, 0.322813679928], last [0.002721461254, 0.997278538746] | Same posteriors, maximum absolute difference 1.67e-16 | 1e-12 | Pass |
+| Restarted filter | Direct recurrence from fitted initial probabilities | Same data and fitted parameters | First posterior [0.999857294826, 0.000142705174], last [0.002799438009, 0.997200561991] | Same posteriors, maximum absolute difference 2.78e-17 | 1e-12 | Pass |
+| Underflow | Gaussian likelihood ratio and two-state transition | Means [0, 0], variances [1, 4], transition rows [0.9, 0.1] and [0.2, 0.8], prior [0.6, 0.4], observations [100, 0] | [0, 1], then [1/3, 2/3] | Same posteriors when both raw densities at 100 round to zero | 1e-12 | Pass |
+| Chronology | Strict date comparison and exact prefix comparison | Overlapping and out-of-order dates, and appended observations | Reject invalid dates in continuation, preserve already filtered rows and fitted state | Expected errors and equal rows | Exact | Pass |

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from scipy.special import logsumexp
 
 
 @dataclass
@@ -37,14 +38,94 @@ class MarkovRegimeModel:
         """Full-sample state probabilities, also available as regime_probabilities."""
         return self.regime_probabilities
 
+    def filter_probabilities(self, observations, *, continue_from_fit: bool = True) -> pd.DataFrame:
+        """Filter a new ordered series with fixed parameters.
 
-def _clean_series(observations) -> pd.Series:
+        By default, advance the fit's terminal filtered posterior one step
+        for the first new observation. Set continue_from_fit to False to
+        start an independent sequence at the model's initial probabilities.
+        Dated continuations must begin strictly after the last training row.
+        Missing observations are skipped without advancing the state.
+        """
+        series = _finite_observations(observations)
+        index = series.index
+        if isinstance(index, pd.MultiIndex) or not index.is_unique or not index.is_monotonic_increasing or index.hasnans:
+            raise ValueError("observations must have a unique chronological index without missing labels")
+
+        states = self.means.index
+        means = self.means.to_numpy(dtype=float)
+        if not len(states) or not states.is_unique or not np.isfinite(means).all():
+            raise ValueError("the model must have unique states with finite means")
+        transition = self.transition_matrix.reindex(index=states, columns=states).to_numpy(dtype=float)
+        variances = self.variances.reindex(states).to_numpy(dtype=float)
+        if not np.isfinite(variances).all() or np.any(variances <= 0):
+            raise ValueError("the model must have positive finite variances")
+        if not np.isfinite(transition).all() or np.any(transition < 0):
+            raise ValueError("the transition matrix must contain non-negative finite probabilities")
+        if not np.allclose(transition.sum(axis=1), 1.0, rtol=0, atol=1e-10):
+            raise ValueError("transition rows must sum to one")
+
+        if continue_from_fit:
+            training = self.filtered_regime_probabilities
+            if training is None or training.empty:
+                raise ValueError("continuation requires a terminal filtered training posterior")
+            date_indexes = (pd.DatetimeIndex, pd.PeriodIndex)
+            if isinstance(index, date_indexes) and isinstance(training.index, date_indexes):
+                if not training.index.is_unique or not training.index.is_monotonic_increasing or training.index.hasnans:
+                    raise ValueError("training observations must have a unique chronological index")
+                try:
+                    overlaps = index[0] <= training.index[-1]
+                except TypeError as exc:
+                    raise ValueError("training and continuation timestamps must be comparable") from exc
+                if overlaps:
+                    raise ValueError("continuation observations must be strictly after the training cutoff")
+            prior = training.iloc[-1].reindex(states).to_numpy(dtype=float)
+        else:
+            prior = self.initial_probabilities.reindex(states).to_numpy(dtype=float)
+        if not np.isfinite(prior).all() or np.any(prior < 0) or not np.isclose(prior.sum(), 1.0, rtol=0, atol=1e-10):
+            raise ValueError("the starting probabilities must be non-negative and sum to one")
+        if continue_from_fit:
+            prior = prior @ transition
+
+        filtered = _filter_observations(series.to_numpy(dtype=float), means, variances, prior, transition)
+        return pd.DataFrame(filtered, index=index, columns=states)
+
+
+def _finite_observations(observations) -> pd.Series:
     series = pd.Series(observations, dtype=float).replace([np.inf, -np.inf], np.nan).dropna()
     if series.empty:
         raise ValueError("observations must contain at least one finite value")
+    return series
+
+
+def _clean_series(observations) -> pd.Series:
+    series = _finite_observations(observations)
     if len(series) < 10:
         raise ValueError("at least 10 observations are required to fit a Markov regime model")
     return series
+
+
+def _filter_observations(values, means, variances, initial, transition):
+    # Relative log likelihoods retain information when all densities underflow.
+    with np.errstate(divide="ignore", over="ignore"):
+        log_prior = np.log(initial)
+        log_transition = np.log(transition)
+        standardized = (values[:, None] - means) / np.sqrt(variances)
+        log_emissions = -0.5 * (standardized**2 + np.log(variances))
+
+    probabilities = np.empty_like(log_emissions)
+    for row, log_emission in enumerate(log_emissions):
+        reachable = np.isfinite(log_prior)
+        offset = np.max(log_emission[reachable])
+        if not np.isfinite(offset):
+            raise ValueError("observations are too extreme for the fitted Gaussian variances")
+        log_joint = np.full_like(log_prior, -np.inf)
+        log_joint[reachable] = log_prior[reachable] + (log_emission[reachable] - offset)
+        log_posterior = log_joint - logsumexp(log_joint)
+        probabilities[row] = np.exp(log_posterior)
+        log_prior = logsumexp(log_posterior[:, None] + log_transition, axis=0)
+    return probabilities
+
 
 
 def _gaussian_density(values: np.ndarray, means: np.ndarray, variances: np.ndarray) -> np.ndarray:

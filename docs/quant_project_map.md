@@ -55,6 +55,8 @@ Core files:
 
 The reporting layer builds a dashboard-ready `RiskReport` with volatility, Sharpe, Sortino, drawdown, historical VaR, Gaussian VaR, CVaR, beta, tracking error, information ratio, rolling volatility, and rolling drawdown. It also includes a Gaussian Hidden Markov Model report for latent bull, bear, and sideways market regime detection. The volatility toolkit adds historical, realized, EWMA, OHLC, and implied volatility estimators.
 
+Fit the HMM on training observations and call `model.filter_probabilities(validation_returns)` with later data. The filter advances the terminal training posterior under fixed parameters. Pass `continue_from_fit=False` for an independent sequence starting from the fitted initial distribution. Each call leaves the fitted model untouched. Dated continuations must start after the training cutoff. Each finite observation advances the state once.
+
 Core files:
 
 - `riskoptima/reporting/market_risk.py`

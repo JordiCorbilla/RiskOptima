@@ -71,8 +71,21 @@ Notebook 05 ran live against this branch. The full suite passed 202 tests.
 Daily closes still leave intraday ordering and vendor publication or
 revision times unverified.
 
+## 22 November 2026 — Out-of-sample Markov filtering
+
+Added a fixed-parameter forward filter to the fitted model. Dated continuations
+reject data that overlaps the fit. The log-space filter preserves relative
+likelihoods when both raw densities underflow. The continued and restarted
+outputs matched independent probability-space recursions within 1e-12.
+
+All 206 tests and six Platform backend tests passed. Line coverage was
+69.9351% and branch coverage was 58.7811%. Ruff, mypy for Python 3.11 and
+3.12, and local distribution builds passed.
+
 ## Next outstanding item
 
-Add an out-of-sample, fixed-parameter HMM filter. Validate its continued
-posterior against an independent forward recursion and enforce the
-training cutoff when dated inputs are available.
+Stress-test the HMM fitting path at extreme emission ranges and the Merton
+pricer in the tails. The new filter handles the tested underflow case. The EM
+fit still uses clipped densities. Then validate legacy Heston and SABR
+conventions against independent engines. Historical vendor publication and
+revision timing also remain unverified.
