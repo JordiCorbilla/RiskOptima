@@ -16,6 +16,7 @@ import pandas as pd
 from scipy.optimize import minimize
 
 from .constraints import Constraints, category_constraint_func, exposure_constraint_func
+from .covariance import _validate_covariance
 
 
 @dataclass
@@ -36,15 +37,11 @@ def _sum_to_one_constraint():
 
 
 def _validate_inputs(expected_returns: Optional[pd.Series], cov: pd.DataFrame):
-    if not isinstance(cov, pd.DataFrame):
-        cov = pd.DataFrame(cov)
-    cov = cov.astype(float)
-    if cov.shape[0] != cov.shape[1]:
-        raise ValueError("cov must be a square covariance matrix")
-    if not np.isfinite(cov.values).all():
-        raise ValueError("covariance matrix contains NaN or infinite values")
+    cov = _validate_covariance(cov, require_annualized=True)
     if expected_returns is not None:
         expected_returns = pd.Series(expected_returns, dtype=float)
+        if expected_returns.empty or not expected_returns.index.is_unique:
+            raise ValueError("expected_returns must have unique asset labels and be non-empty")
         missing = [asset for asset in expected_returns.index if asset not in cov.index or asset not in cov.columns]
         if missing:
             raise ValueError(f"covariance matrix is missing assets: {missing}")
@@ -91,8 +88,11 @@ def _build_constraints(
     allow_missing_factors: bool,
 ):
     cons = [_sum_to_one_constraint()]
-    if constraints.leverage_limit is not None:
-        cons.append({"type": "ineq", "fun": lambda w, lim=constraints.leverage_limit: lim - np.sum(np.abs(w))})
+    leverage_limit = constraints.leverage_limit
+    # Gross leverage equals the budget for long-only portfolios. Adding the
+    # same active constraint twice can produce an inaccurate SLSQP optimum.
+    if leverage_limit is not None and (constraints.weight_bounds[0] < 0 or leverage_limit < 1):
+        cons.append({"type": "ineq", "fun": lambda w: leverage_limit - np.sum(np.abs(w))})
     if constraints.turnover_limit is not None:
         if previous_weights is None:
             raise ValueError("previous_weights is required when turnover_limit is set")
@@ -156,6 +156,12 @@ def optimize_max_sharpe(
     allow_missing_factors: bool = False,
     return_result: bool = False,
 ):
+    """Optimize with annual decimal expected returns, rates and covariance.
+
+    Untagged covariance inputs are assumed annualized for compatibility.
+    """
+    if not np.isfinite(risk_free_rate):
+        raise ValueError("risk_free_rate must be finite")
     if constraints is None:
         constraints = Constraints()
 
@@ -169,7 +175,7 @@ def optimize_max_sharpe(
 
     def neg_sharpe(weights):
         port_ret = np.dot(weights, expected_returns.values)
-        port_vol = np.sqrt(weights.T @ cov.values @ weights)
+        port_vol = np.sqrt(max(float(weights.T @ cov.values @ weights), 0.0))
         if port_vol <= 0:
             return 1e12
         return -(port_ret - risk_free_rate) / port_vol
@@ -194,6 +200,12 @@ def optimize_min_variance(
     allow_missing_factors: bool = False,
     return_result: bool = False,
 ):
+    """Minimize annualized volatility using covariance of decimal returns.
+
+    Untagged covariance inputs are assumed annualized for compatibility.
+    """
+    if target_return is not None and not np.isfinite(target_return):
+        raise ValueError("target_return must be finite")
     if constraints is None:
         constraints = Constraints()
 
@@ -205,14 +217,24 @@ def optimize_min_variance(
     init_guess = np.repeat(1 / n, n)
     bounds = constraints.bounds(n)
 
-    def portfolio_vol(weights):
-        return np.sqrt(weights.T @ cov.values @ weights)
+    values = cov.to_numpy()
+    scale = np.max(np.abs(values))
+    normalized = values / scale if scale else values
+
+    def portfolio_variance(weights):
+        return float(weights @ normalized @ weights)
+
+    def variance_gradient(weights):
+        return 2.0 * (normalized @ weights)
 
     cons = _build_constraints(constraints, previous_weights, factor_exposures, metadata, allow_missing_factors)
     if target_return is not None and expected_returns is not None:
         cons.append({"type": "eq", "fun": lambda w: np.dot(w, expected_returns.values) - target_return})
 
-    result = minimize(portfolio_vol, init_guess, method="SLSQP", bounds=bounds, constraints=cons)
+    result = minimize(
+        portfolio_variance, init_guess, method="SLSQP", jac=variance_gradient,
+        bounds=bounds, constraints=cons, options={"ftol": 1e-12},
+    )
     if not result.success:
         raise ValueError(f"Minimum variance optimization failed: {result.message}")
     opt_result = _format_result(result, "min_variance", expected_returns, cov, 0.0, constraints, previous_weights, factor_exposures, metadata)

@@ -45,10 +45,6 @@ from scipy.stats import norm
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 try:
@@ -334,16 +330,15 @@ class RiskOptima:
 
     @staticmethod
     def cvar_historic(returns, level=5):
-        """
-        Computes the Conditional VaR of Series or DataFrame
-        """
-        if isinstance(returns, pd.Series):
-            is_beyond = returns <= -RiskOptima.var_historic(returns, level=level)
-            return -returns[is_beyond].mean()
-        elif isinstance(returns, pd.DataFrame):
+        """Empirical expected shortfall over the worst ``level`` percent of returns."""
+        from riskoptima.risk._tail import _empirical_expected_shortfall
+
+        if isinstance(returns, pd.DataFrame):
             return returns.aggregate(RiskOptima.cvar_historic, level=level)
-        else:
-            raise TypeError("Expected returns to be a Series or DataFrame")
+        if isinstance(returns, pd.Series):
+            losses = -returns.replace([np.inf, -np.inf], np.nan).dropna().to_numpy(dtype=float)
+            return _empirical_expected_shortfall(losses, 1.0 - level / 100.0)
+        raise TypeError("Expected returns to be a Series or DataFrame")
 
     @staticmethod
     def var_gaussian(returns, level=5, modified=False):
@@ -1453,9 +1448,13 @@ class RiskOptima:
         price_data = RiskOptima.fetch_historical_stock_prices(tickers, start_date, end_date)['Close']
         if price_data.empty:
             raise ValueError("No historical data retrieved. Verify the tickers and date range.")
-
+        price_data = pd.DataFrame(price_data).reindex(columns=tickers)
+        missing_prices = price_data.columns[price_data.notna().sum().lt(2)].tolist()
+        if missing_prices:
+            raise ValueError(f"Historical prices require at least two observations for: {missing_prices}")
         daily_returns = price_data.pct_change(fill_method=None).dropna()
-
+        if len(daily_returns) < 2:
+            raise ValueError("At least two complete return observations are required")
         if predefined_returns is None:
             predefined_returns = daily_returns.mean() * RiskOptima.TRADING_DAYS
 
@@ -1514,57 +1513,20 @@ class RiskOptima:
 
     @staticmethod
     def evaluate_model(model, X, y):
-        """
-        Evaluate the model using cross-validation and calculate the average performance metrics.
-        :param model: The machine learning model to evaluate.
-        :param X: Feature matrix.
-        :param y: Target variable.
-        :return: Cross-validation score and mean squared error.
-        """
-        cv_scores = cross_val_score(model, X, y, cv=5, scoring='r2')
-        model.fit(X, y)
-        predictions = model.predict(X)
-        mse = mean_squared_error(y, predictions)
-        return np.mean(cv_scores), mse
+        """Return expanding-window R² and MSE and refit on all supplied rows."""
+        from riskoptima.optim._forecast import evaluate_regressor
+
+        return evaluate_regressor(model, X, y)
 
     @staticmethod
     def predict_with_model(model, feature_data):
-        """
-        Predict stock returns using the trained model.
-        :param model: Trained machine learning model.
-        :param feature_data: DataFrame of features for prediction.
-        :return: Predicted stock return.
-        """
-        scaler = StandardScaler()
-        feature_data_scaled = scaler.fit_transform(feature_data)
-        predictions = model.predict(feature_data_scaled)
-        return predictions[-1]  # Return the last prediction as the future return
-
+        """Return the last prediction using the model's fitted preprocessing."""
+        return model.predict(feature_data)[-1]
 
     @staticmethod
     def generate_stock_predictions(ticker, start_date, end_date, model_type='Linear Regression'):
-        """
-        Generate stock return predictions and model confidence using a specified model type.
-        :param ticker: Stock ticker symbol.
-        :param start_date: Start date for the historical data (YYYY-MM-DD).
-        :param end_date: End date for the historical data (YYYY-MM-DD).
-        :param model_type: Choice of machine learning model ('Linear Regression', 'Random Forest', 'Gradient Boosting').
-        :return: Tuple of predicted return and model confidence.
-        """
-        stock_prices = RiskOptima.download_data_yfinance(ticker, start_date, end_date)
-        enriched_data = RiskOptima.add_features(stock_prices)
-        prepared_data = RiskOptima.create_lagged_features(enriched_data)
-
-        X = prepared_data.drop('Close', axis=1)
-        y = prepared_data['Close']
-
-        X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                            test_size=0.2,
-                                                            random_state=42)
-
-        imputer = SimpleImputer(strategy='mean')
-        X_train = imputer.fit_transform(X_train)
-        X_test = imputer.transform(X_test)
+        """Return a next-observation simple return forecast and out-of-sample R²."""
+        from riskoptima.optim._forecast import forecast_next_return
 
         if model_type == 'Random Forest':
             model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -1581,10 +1543,8 @@ class RiskOptima:
         else:
             raise ValueError("Invalid model type. Choose from 'Linear Regression', 'Random Forest', or 'Gradient Boosting'.")
 
-        # Train and evaluate the model
-        avg_cv_score, mse = RiskOptima.evaluate_model(model, X_train, y_train)
-        predicted_return = RiskOptima.predict_with_model(model, X_test)
-        return predicted_return, avg_cv_score
+        stock_prices = RiskOptima.download_data_yfinance(ticker, start_date, end_date)
+        return forecast_next_return(stock_prices, model)
 
     @staticmethod
     def black_litterman_adjust_returns(market_returns, investor_views, view_confidences,
@@ -1592,28 +1552,35 @@ class RiskOptima:
         """
         Adjust market returns based on investor views and their confidences using the Black-Litterman model.
 
-        :param dict market_returns: Expected market returns for each asset.
-        :param dict investor_views: Investor's views on the expected returns of assets.
+        :param dict market_returns: Expected annual returns for each asset.
+        :param dict investor_views: Investor's views on expected annual returns of assets.
         :param dict view_confidences: Confidence levels for each investor view.
         :param pandas.DataFrame historical_prices: Historical price data for calculating covariance matrix.
         :param float tau: Market equilibrium uncertainty factor (default 0.025).
         :return: Numpy array of adjusted returns for each asset.
         """
-        num_assets = len(market_returns)
-        proportion_matrix = np.eye(num_assets)
-        views_vector = np.array(list(investor_views.values())).reshape(-1, 1)
-        covariance_matrix = historical_prices['Close'].pct_change(fill_method=None).dropna().cov()
-        omega_matrix = np.diag([tau / confidence for confidence in view_confidences.values()])
+        from riskoptima.optim.covariance import sample_covariance
 
-        inv_tau_cov = np.linalg.inv(tau * covariance_matrix)
-        inv_omega = np.linalg.inv(omega_matrix)
+        prior = pd.Series(market_returns, dtype=float)
+        views = pd.Series(investor_views, dtype=float).reindex(prior.index)
+        confidence = pd.Series(view_confidences, dtype=float).reindex(prior.index)
+        if not np.isfinite(prior).all() or not np.isfinite(tau) or tau <= 0:
+            raise ValueError("market returns must be finite and tau must be positive")
+        if np.isinf(confidence).any() or confidence.isna().any():
+            raise ValueError("view confidences must be finite and aligned with market returns")
+        active = confidence.index[confidence.gt(0)]
+        if not len(active):
+            return prior.to_numpy()
+        if not np.isfinite(views.loc[active]).all():
+            raise ValueError("active investor views must be finite and aligned with market returns")
 
-        adjusted_returns = np.linalg.inv(inv_tau_cov + proportion_matrix.T @ inv_omega @ proportion_matrix)
-        adjusted_returns = adjusted_returns @ (
-            inv_tau_cov @ np.array(list(market_returns.values())).reshape(-1, 1) +
-            proportion_matrix.T @ inv_omega @ views_vector
-        )
-        return adjusted_returns.flatten()
+        closes = pd.DataFrame(historical_prices["Close"]).loc[:, prior.index]
+        annual_cov = sample_covariance(closes.pct_change(fill_method=None), RiskOptima.TRADING_DAYS)
+        cross_cov = tau * annual_cov.loc[:, active]
+        omega = np.diag(tau / confidence.loc[active])
+        residual = (views - prior).loc[active]
+        adjustment = cross_cov.to_numpy() @ np.linalg.solve(cross_cov.loc[active] + omega, residual)
+        return prior.to_numpy() + adjustment
 
     @staticmethod
     def compute_market_returns(market_capitalizations, market_index_return):
@@ -1981,7 +1948,7 @@ class RiskOptima:
             "GMV\nPortfolio Weights": w_gmv,
             "CML\nPortfolio Weights": w_msr
         })
-        portfolio_df.set_index("Security", inplace=True)
+        portfolio_df = portfolio_df.set_index("Security")
         portfolio_df = portfolio_df.apply(lambda col: col.map(lambda x: f"{x * 100:.2f}%"))
 
         if show_tables:
@@ -2180,13 +2147,12 @@ class RiskOptima:
         """
         Helper function to produce lines of text with performance metrics
         """
-        if is_market_return:
-            return [
-                f"Sharpe Ratio: {RiskOptima.sharpe_ratio(portfolio_returns, risk_free_rate).iloc[0]:.2f}",
-                f"Sortino Ratio: {RiskOptima.sortino_ratio(portfolio_returns, risk_free_rate).iloc[0]:.2f}",
-                f"Info Ratio: {RiskOptima.information_ratio(portfolio_returns, market_returns):.2f}",
-                f"Return: {final_returns:.2f}%"
-            ]
+        # is_market_return is retained for callers using the legacy signature.
+        if isinstance(portfolio_returns, pd.DataFrame):
+            if portfolio_returns.shape[1] != 1:
+                raise ValueError("portfolio_returns must contain one return series")
+            portfolio_returns = portfolio_returns.iloc[:, 0]
+        portfolio_returns = portfolio_returns.dropna()
         return [
             f"Sharpe Ratio: {RiskOptima.sharpe_ratio(portfolio_returns, risk_free_rate):.2f}",
             f"Sortino Ratio: {RiskOptima.sortino_ratio(portfolio_returns, risk_free_rate):.2f}",
@@ -2665,7 +2631,14 @@ class RiskOptima:
         index_data = RiskOptima.fetch_historical_stock_prices(
             market_benchmark, training_start_date, training_end_date
         )
-        index_return = (index_data['Close'].iloc[-1] / index_data['Close'].iloc[0]) - 1
+        benchmark_closes = pd.DataFrame(index_data["Close"])
+        if benchmark_closes.shape[1] != 1:
+            raise ValueError("market_benchmark must identify one instrument")
+        benchmark_returns = benchmark_closes.iloc[:, 0].pct_change(fill_method=None).dropna()
+        if benchmark_returns.empty:
+            raise ValueError("Historical benchmark prices must provide at least one return")
+        index_return = float(benchmark_returns.mean()) * RiskOptima.TRADING_DAYS
+        annual_views = {ticker: view * RiskOptima.TRADING_DAYS for ticker, view in investor_views.items()}
 
         # Compute market returns for each asset based on market caps and index return
         computed_market_returns = RiskOptima.compute_market_returns(market_caps, index_return)
@@ -2674,7 +2647,7 @@ class RiskOptima:
             tickers, training_start_date, training_end_date
         )
         predicted_returns = RiskOptima.black_litterman_adjust_returns(
-            computed_market_returns, investor_views, view_confidences, historical_data
+            computed_market_returns, annual_views, view_confidences, historical_data
         )
         predicted_returns = dict(zip(tickers, predicted_returns))
         adjusted_returns_vector = np.array([predicted_returns[ticker] for ticker in tickers])
@@ -2692,7 +2665,7 @@ class RiskOptima:
             tickers, backtesting_start_date, backtesting_end_date
         )
         # Forward-fill missing data and compute daily returns
-        historical_data_filled = historical_data_backtest['Close'].ffill()
+        historical_data_filled = historical_data_backtest['Close'].loc[:, tickers].ffill()
         daily_returns_backtest = historical_data_filled.pct_change()
 
         portfolio_returns_ml_mv = daily_returns_backtest.dot(optimized_weights_ml_mv)
@@ -2963,37 +2936,23 @@ class RiskOptima:
         return option_price
 
     @staticmethod
-    def merton_jump_diffusion(S_0, X, T, r, sigma, lambda_jump, m_jump, delta_jump, num_simulations=10000, num_steps=100):
+    def merton_jump_diffusion(
+        S_0, X, T, r, sigma, lambda_jump, m_jump, delta_jump,
+        num_simulations=10000, num_steps=100, *, random_state=None,
+    ):
+        """Price a European call using risk-neutral Merton jump diffusion.
+
+        Jump size inputs are log-jump mean and standard deviation.
+        ``num_steps`` is retained for compatibility. Exact terminal sampling
+        gives the same distribution for every positive step count.
         """
-        Computes the option price using the Merton Jump Diffusion model via Monte Carlo simulation.
+        from riskoptima.options.monte_carlo import merton_jump_diffusion_call
 
-        :param float S_0: Initial price of the underlying asset.
-        :param float X: Strike price of the option.
-        :param float T: Time to expiration in years.
-        :param float r: Risk-free interest rate.
-        :param float sigma: Volatility of the underlying asset.
-        :param float lambda_jump: Intensity of the jumps.
-        :param float m_jump: Mean of the jump size.
-        :param float delta_jump: Volatility of the jump size.
-        :param int num_simulations: Number of simulations (default: 10000).
-        :param int num_steps: Number of steps in the simulation (default: 100).
-        :return: The estimated option price using the Merton Jump Diffusion model as a float.
-        """
-        dt = T / num_steps
-        S_t = np.full(num_simulations, S_0, dtype=np.float64)
-
-        for _ in range(num_steps):
-            z = np.random.normal(size=num_simulations)
-            jump_sizes = np.random.normal(loc=m_jump, scale=delta_jump, size=num_simulations)
-            jumps = np.random.poisson(lambda_jump * dt, size=num_simulations)
-            S_t *= np.exp((r - 0.5 * sigma ** 2) * dt + sigma * np.sqrt(dt) * z)
-            S_t *= np.exp(jumps * jump_sizes)
-
-        option_payoffs = np.maximum(S_t - X, 0)
-        average_payoff = np.mean(option_payoffs)
-        option_price = np.exp(-r * T) * average_payoff
-
-        return option_price
+        if not isinstance(num_steps, (int, np.integer)) or num_steps <= 0:
+            raise ValueError("num_steps must be a positive integer")
+        return merton_jump_diffusion_call(
+            S_0, X, T, r, sigma, lambda_jump, m_jump, delta_jump, num_simulations, random_state
+        )
 
     @staticmethod
     def create_heatmap(S_0, X, T, lambda_jump, m_jump, delta_jump,

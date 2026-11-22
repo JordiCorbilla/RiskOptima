@@ -11,6 +11,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from riskoptima.risk._tail import _empirical_expected_shortfall
+
 
 def _validated_credit_inputs(pd_, lgd, ead):
     pd_arr, lgd_arr, ead_arr = np.broadcast_arrays(
@@ -68,12 +70,8 @@ def credit_var(losses, confidence=0.99):
 
 
 def credit_cvar(losses, confidence=0.99):
-    """
-    Computes Credit CVaR / expected shortfall from a simulated loss vector.
-    """
+    """Empirical expected credit loss over exactly the worst (1-confidence) mass."""
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
     loss_arr = pd.Series(losses, dtype=float).replace([np.inf, -np.inf], np.nan).dropna().to_numpy()
-    if loss_arr.size == 0:
-        raise ValueError("losses must contain at least one finite value")
-    var = credit_var(loss_arr, confidence=confidence)
-    tail = loss_arr[loss_arr >= var]
-    return float(tail.mean()) if tail.size else var
+    return _empirical_expected_shortfall(loss_arr, confidence)

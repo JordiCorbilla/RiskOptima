@@ -9,10 +9,45 @@
 from __future__ import annotations
 
 import math
+import warnings
+from dataclasses import dataclass
+from operator import index
+from typing import Literal, overload
 
 import numpy as np
 
 from .black_scholes import black_scholes_price
+
+
+@dataclass(frozen=True)
+class ImpliedVolatilityResult:
+    """Bisection result with a signed model-minus-market residual in price units."""
+
+    volatility: float
+    converged: bool
+    iterations: int
+    price_error: float
+
+
+@overload
+def implied_volatility(
+    market_price, S, K, T, r, option_type=..., q=..., tol=..., max_iter=..., low=..., high=...,
+    *, return_result: Literal[False] = False,
+) -> float: ...
+
+
+@overload
+def implied_volatility(
+    market_price, S, K, T, r, option_type=..., q=..., tol=..., max_iter=..., low=..., high=...,
+    *, return_result: Literal[True],
+) -> ImpliedVolatilityResult: ...
+
+
+@overload
+def implied_volatility(
+    market_price, S, K, T, r, option_type=..., q=..., tol=..., max_iter=..., low=..., high=...,
+    *, return_result: bool,
+) -> float | ImpliedVolatilityResult: ...
 
 
 def implied_volatility(
@@ -27,9 +62,14 @@ def implied_volatility(
     max_iter=100,
     low=1e-6,
     high=5.0,
-):
-    """
-    Solves Black-Scholes implied volatility using bisection.
+    *,
+    return_result: bool = False,
+) -> float | ImpliedVolatilityResult:
+    """Solve Black-Scholes implied volatility to an absolute price tolerance.
+
+    Request a result object to inspect convergence. The default returns a
+    float and warns if it is only an estimate after exhausting the budget.
+    Invalid or unbracketed prices raise ValueError in either mode.
     """
     values = (market_price, S, K, T, r, q, tol, low, high)
     if not all(math.isfinite(float(value)) for value in values):
@@ -40,6 +80,10 @@ def implied_volatility(
         raise ValueError("T must be positive when solving implied volatility")
     if market_price <= 0:
         raise ValueError("market_price must be positive")
+    try:
+        max_iter = index(max_iter)
+    except TypeError as exc:
+        raise ValueError("max_iter must be a positive integer") from exc
     if tol <= 0 or max_iter <= 0:
         raise ValueError("tol and max_iter must be positive")
     if low <= 0 or high <= low:
@@ -65,13 +109,28 @@ def implied_volatility(
     high_price = black_scholes_price(S, K, T, r, hi, option_type=option, q=q)
     if market_price < low_price - tol or market_price > high_price + tol:
         raise ValueError("market_price is not bracketed by the volatility bounds")
-    for _ in range(max_iter):
+    for iteration in range(1, max_iter + 1):
         mid = 0.5 * (lo + hi)
-        price = black_scholes_price(S, K, T, r, mid, option_type=option, q=q)
-        if abs(price - market_price) < tol:
-            return float(mid)
-        if price > market_price:
+        error = black_scholes_price(S, K, T, r, mid, option_type=option, q=q) - market_price
+        if abs(error) <= tol:
+            result = ImpliedVolatilityResult(float(mid), True, iteration, float(error))
+            return result if return_result else result.volatility
+        if error > 0:
             hi = mid
         else:
             lo = mid
-    return float(0.5 * (lo + hi))
+
+    # Preserve the historical final estimate and check its residual too.
+    mid = 0.5 * (lo + hi)
+    error = black_scholes_price(S, K, T, r, mid, option_type=option, q=q) - market_price
+    result = ImpliedVolatilityResult(float(mid), abs(error) <= tol, max_iter, float(error))
+    if return_result:
+        return result
+    if not result.converged:
+        warnings.warn(
+            "Returning a float for non-converged implied volatility is deprecated. "
+            "Pass return_result=True and inspect converged.",
+            FutureWarning,
+            stacklevel=2,
+        )
+    return result.volatility

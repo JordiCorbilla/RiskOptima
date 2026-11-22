@@ -14,6 +14,8 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
+
+from riskoptima.risk._tail import _empirical_expected_shortfall
 from scipy.optimize import minimize
 from scipy.special import logsumexp
 
@@ -94,10 +96,7 @@ def _solve_long_only(returns: pd.DataFrame, objective, label: str) -> pd.Series:
 
 
 def _cvar_loss(values: np.ndarray, confidence: float) -> float:
-    losses = -values
-    threshold = np.quantile(losses, confidence)
-    tail = losses[losses >= threshold]
-    return float(tail.mean()) if tail.size else float(threshold)
+    return _empirical_expected_shortfall(-values, confidence)
 
 
 def _evar_loss(values: np.ndarray, confidence: float) -> float:

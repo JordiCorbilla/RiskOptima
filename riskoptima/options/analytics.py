@@ -246,8 +246,12 @@ def build_implied_vol_surface(chain: pd.DataFrame, spot: float, valuation_date, 
             risk_free_rate,
             option_type=row["option_type"],
             q=dividend_yield,
+            return_result=True,
         )
-        rows.append({**row, "time_to_expiry": tte, "implied_volatility": iv})
+        rows.append({
+            **row, "time_to_expiry": tte, "implied_volatility": iv.volatility,
+            "iv_converged": iv.converged, "iv_iterations": iv.iterations, "iv_price_error": iv.price_error,
+        })
     return pd.DataFrame(rows)
 
 

@@ -61,6 +61,8 @@ def build_markov_regime_report(
             "model": model,
             "regimes": model.regimes,
             "regime_probabilities": model.regime_probabilities,
+            "filtered_regime_probabilities": model.filtered_regime_probabilities,
+            "smoothed_regime_probabilities": model.smoothed_regime_probabilities,
             "transition_matrix": model.transition_matrix,
             "regime_summary": summary,
         }
