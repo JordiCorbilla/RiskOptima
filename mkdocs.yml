@@ -16,4 +16,4 @@ nav:
       - Validation ledger: audit/VALIDATION_LEDGER.md
       - Numerical contracts ADR: adr/0001-numerical-contracts.md
       - Event-time and validation ADR: adr/0002-as-of-data-and-validation.md
-      - Proposed v2.8.2 notes: RELEASE_NOTES_v2.8.2.md
+      - v2.8.2 release notes: RELEASE_NOTES_v2.8.2.md
