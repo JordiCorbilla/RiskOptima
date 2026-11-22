@@ -8,3 +8,12 @@ nav:
   - Options Analytics: options_analytics.md
   - Optimizer Constraints: optimizer_constraints.md
   - Risk Attribution and Scenarios: risk_attribution_and_scenarios.md
+  - RiskOptima 3.0 roadmap: ROADMAP_3_0.md
+  - Phase 1 audit:
+      - Numerical audit: audit/NUMERICAL_AUDIT.md
+      - Architecture audit: audit/ARCHITECTURE_AUDIT.md
+      - Coverage baseline: audit/COVERAGE_BASELINE.md
+      - Validation ledger: audit/VALIDATION_LEDGER.md
+      - Numerical contracts ADR: adr/0001-numerical-contracts.md
+      - Event-time and validation ADR: adr/0002-as-of-data-and-validation.md
+      - Proposed v2.8.2 notes: RELEASE_NOTES_v2.8.2.md

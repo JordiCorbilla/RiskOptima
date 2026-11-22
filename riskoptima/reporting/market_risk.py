@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
+from riskoptima.risk._tail import _empirical_expected_shortfall
 from scipy.stats import norm
 
 from riskoptima.branding import add_riskoptima_signature
@@ -109,8 +111,7 @@ def build_market_risk_report(
         var_level = float(-portfolio.quantile(alpha))
         historical_var[confidence] = var_level
         gaussian_var[confidence] = float(-(portfolio.mean() + norm.ppf(alpha) * portfolio.std(ddof=0)))
-        tail = portfolio[portfolio <= -var_level]
-        cvar[confidence] = float(-tail.mean()) if not tail.empty else var_level
+        cvar[confidence] = _empirical_expected_shortfall(-portfolio.to_numpy(), confidence)
 
     beta = np.nan
     tracking_error = np.nan
@@ -194,7 +195,7 @@ def plot_var_cvar_distribution(returns, confidence=0.99, ax=None, bins=40, add_s
     series = _portfolio_returns(returns)
     losses = -series.dropna()
     var = float(np.quantile(losses, confidence))
-    cvar = float(losses[losses >= var].mean())
+    cvar = _empirical_expected_shortfall(losses.to_numpy(), confidence)
     ax = ax or plt.gca()
     ax.hist(losses, bins=bins, alpha=0.75, **kwargs)
     ax.axvline(var, color="red", linestyle="--", label=f"VaR {confidence:.0%}")

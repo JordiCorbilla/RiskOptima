@@ -16,7 +16,12 @@ import pandas as pd
 
 @dataclass
 class MarkovRegimeModel:
-    """Fitted univariate Gaussian Hidden Markov Model."""
+    """Fitted univariate Gaussian Hidden Markov Model.
+
+    Filtered probabilities use observations through each row under fixed
+    parameters. Fitting those parameters on later data still creates
+    look-ahead if the results are used for historical trading.
+    """
 
     means: pd.Series
     variances: pd.Series
@@ -25,6 +30,12 @@ class MarkovRegimeModel:
     regime_probabilities: pd.DataFrame
     regimes: pd.Series
     log_likelihood: float
+    filtered_regime_probabilities: pd.DataFrame | None = None
+
+    @property
+    def smoothed_regime_probabilities(self) -> pd.DataFrame:
+        """Full-sample state probabilities, also available as regime_probabilities."""
+        return self.regime_probabilities
 
 
 def _clean_series(observations) -> pd.Series:
@@ -77,7 +88,7 @@ def _forward_backward(emissions: np.ndarray, initial: np.ndarray, transition: np
         xi_sum += xi / max(xi.sum(), 1e-300)
 
     log_likelihood = float(np.log(scales).sum())
-    return gamma, xi_sum, log_likelihood
+    return alpha, gamma, xi_sum, log_likelihood
 
 
 def fit_markov_regime_model(
@@ -100,6 +111,8 @@ def fit_markov_regime_model(
         raise ValueError("n_regimes is too high for the number of observations")
     if n_iter < 1:
         raise ValueError("n_iter must be positive")
+    if not np.isfinite(tol) or tol < 0:
+        raise ValueError("tol must be non-negative and finite")
 
     values = series.to_numpy(dtype=float)
     rng = np.random.default_rng(random_state)
@@ -111,12 +124,9 @@ def fit_markov_regime_model(
     np.fill_diagonal(transition, 0.95)
     initial = np.repeat(1.0 / n_regimes, n_regimes)
 
-    previous_ll = -np.inf
-    gamma = np.zeros((len(values), n_regimes))
-    log_likelihood = -np.inf
+    emissions = _gaussian_density(values, means, variances)
+    alpha, gamma, xi_sum, log_likelihood = _forward_backward(emissions, initial, transition)
     for _ in range(n_iter):
-        emissions = _gaussian_density(values, means, variances)
-        gamma, xi_sum, log_likelihood = _forward_backward(emissions, initial, transition)
         weights = np.maximum(gamma.sum(axis=0), 1e-300)
 
         initial = gamma[0] / gamma[0].sum()
@@ -125,9 +135,11 @@ def fit_markov_regime_model(
         variances = (gamma * (values[:, None] - means[None, :]) ** 2).sum(axis=0) / weights
         variances = np.maximum(variances, 1e-10)
 
+        previous_ll = log_likelihood
+        emissions = _gaussian_density(values, means, variances)
+        alpha, gamma, xi_sum, log_likelihood = _forward_backward(emissions, initial, transition)
         if abs(log_likelihood - previous_ll) < tol:
             break
-        previous_ll = log_likelihood
 
     order = np.argsort(means)
     means = means[order]
@@ -147,11 +159,12 @@ def fit_markov_regime_model(
         regime_probabilities=probabilities,
         regimes=regimes,
         log_likelihood=log_likelihood,
+        filtered_regime_probabilities=pd.DataFrame(alpha[:, order], index=series.index, columns=labels),
     )
 
 
 def classify_markov_regimes(model: MarkovRegimeModel) -> pd.Series:
-    """Return the most likely regime sequence from a fitted model."""
+    """Return the per-row most probable smoothed regime from a fitted model."""
     return model.regimes.copy()
 
 

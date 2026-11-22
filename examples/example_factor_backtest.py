@@ -35,7 +35,7 @@ def main():
     )
 
     factor_model = FactorRiskModel(factor_returns=factors).fit(asset_returns)
-    factor_cov = factor_model.covariance_matrix()
+    factor_cov = factor_model.covariance_matrix(periods_per_year=252)
 
     exp_returns = asset_returns.mean() * 252
     constraints = Constraints(factor_bounds={"MKT": (-0.2, 0.8)})

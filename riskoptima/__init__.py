@@ -33,7 +33,7 @@ from .reporting import (
     build_markov_regime_report,
     build_portfolio_sophistication_report,
 )
-from .options import OptionBook, OptionContract, black_scholes_price, black_scholes_greeks, implied_volatility
+from .options import ImpliedVolatilityResult, OptionBook, OptionContract, black_scholes_price, black_scholes_greeks, implied_volatility
 from .volatility import (
     ewma_volatility,
     historical_volatility,
@@ -85,6 +85,7 @@ __all__ = [
     "black_scholes_price",
     "black_scholes_greeks",
     "implied_volatility",
+    "ImpliedVolatilityResult",
     "OptionBook",
     "OptionContract",
     "historical_volatility",

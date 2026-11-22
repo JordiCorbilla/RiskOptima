@@ -8,9 +8,9 @@
 
 from .black_scholes import black_scholes_price
 from .greeks import black_scholes_greeks
-from .implied_vol import implied_volatility
+from .implied_vol import ImpliedVolatilityResult, implied_volatility
 from .binomial import binomial_tree_price
-from .monte_carlo import monte_carlo_european_option
+from .monte_carlo import merton_jump_diffusion_call, monte_carlo_european_option
 from .analytics import (
     OptionBook,
     OptionContract,
@@ -27,6 +27,8 @@ __all__ = [
     "black_scholes_price",
     "black_scholes_greeks",
     "implied_volatility",
+    "ImpliedVolatilityResult",
+    "merton_jump_diffusion_call",
     "binomial_tree_price",
     "monte_carlo_european_option",
     "OptionBook",
