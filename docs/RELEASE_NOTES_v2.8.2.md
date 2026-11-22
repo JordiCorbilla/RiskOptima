@@ -1,6 +1,6 @@
-# RiskOptima v2.8.2 release notes proposal
+# RiskOptima v2.8.2 release notes
 
-This is a draft for the Phase 1 correctness changes.
+This release delivers the Phase 1 numerical integrity changes.
 
 ## Numerical changes
 
@@ -14,4 +14,4 @@ This is a draft for the Phase 1 correctness changes.
 
 ## Verification
 
-Phase 1 adds independent QuantLib and analytical references, property-based regression tests, standalone coverage gates and Ruff. Refer to the [numerical audit](audit/NUMERICAL_AUDIT.md) for formulas and the [architecture audit](audit/ARCHITECTURE_AUDIT.md) for validated integrations. Proposed release versioning is a separate step.
+Phase 1 adds independent QuantLib and analytical references, property-based regression tests, standalone coverage gates and Ruff. Refer to the [numerical audit](audit/NUMERICAL_AUDIT.md) for formulas and the [architecture audit](audit/ARCHITECTURE_AUDIT.md) for validated integrations.

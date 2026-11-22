@@ -10,7 +10,7 @@ The patch candidate corrects Merton pricing, event-time access, financial ML val
 | [Architecture audit](audit/ARCHITECTURE_AUDIT.md) | API inventory, ownership, notebook runs and Platform compatibility |
 | [Coverage baseline](audit/COVERAGE_BASELINE.md) | Exact baseline counts, warnings, CI floors and performance |
 | [Validation ledger](audit/VALIDATION_LEDGER.md) | Independently reproduced prices, probabilities, weights, and risk measures |
-| [Proposed v2.8.2 notes](RELEASE_NOTES_v2.8.2.md) | Upgrading and reading corrected outputs |
+| [v2.8.2 release notes](RELEASE_NOTES_v2.8.2.md) | Upgrading and reading corrected outputs |
 
 ## Phase 2 — consolidate with compatibility tests
 

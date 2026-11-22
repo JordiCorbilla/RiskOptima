@@ -32,6 +32,13 @@ https://pypistats.org/packages/riskoptima
 
 RiskOptima is for research and educational use only. Its reports and scores are **not investment advice** or recommendations to buy, sell or hold any instrument. Models and third-party data may be incomplete or inaccurate; past performance does not guarantee future results. Independently verify inputs and results before making investment decisions.
 
+## What's New in 2.8.2
+
+- Corrected risk-neutral Merton jump-diffusion pricing, point-in-time backtesting, and chronological validation of stock return forecasts.
+- Added stricter covariance validation and explicit factor covariance annualization, implied-volatility convergence diagnostics, and separate filtered and smoothed Markov probabilities.
+- Expected Shortfall now takes exactly the requested empirical tail mass, including fractional observations and ties.
+- Added numerical regression and property tests, coverage gates, and a validation ledger. [Full release notes](https://github.com/JordiCorbilla/RiskOptima/blob/main/docs/RELEASE_NOTES_v2.8.2.md)
+
 ## What's New in 2.8.1
 
 - Fund reports distinguish equity exposure from corporate shares and disclose available provider metadata, missing fields and valuation limitations.
@@ -443,7 +450,7 @@ Run notebooks from the repository root so local sample paths and the checkout re
 Notebook setup cells do not upgrade RiskOptima automatically. In a fresh environment, install the desired release before opening Jupyter:
 
 ```bash
-python -m pip install "riskoptima==2.8.1" jupyter
+python -m pip install "riskoptima==2.8.2" jupyter
 python -m jupyter lab
 ```
 
