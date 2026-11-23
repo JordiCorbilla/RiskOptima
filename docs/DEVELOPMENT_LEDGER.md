@@ -82,10 +82,24 @@ All 206 tests and six Platform backend tests passed. Line coverage was
 69.9351% and branch coverage was 58.7811%. Ruff, mypy for Python 3.11 and
 3.12, and local distribution builds passed.
 
+## 23 November 2026 — HMM and Merton tail stability
+
+HMM fitting now shares its log-space forward pass with the fixed-parameter
+filter and calculates backward state and transition probabilities in log
+space. The fit keeps previous parameters for effectively unvisited states
+and rejects arithmetic outside the representable range. The independent
+comparison enumerates hidden paths, including underflow and sparse
+transition cases.
+
+Merton pricing now keeps the discounted stock move separate from the
+rate, scales the jump compensation before exponentiating, and averages
+payoffs in log units. Seed handling and callable signatures are unchanged.
+The ledger separates arithmetic stability from rare-event Monte Carlo
+sampling error. Local Windows verification passed the 179 tests that ran
+without QuantLib. The existing QuantLib regressions run in the Linux CI matrix.
+
 ## Next outstanding item
 
-Stress-test the HMM fitting path at extreme emission ranges and the Merton
-pricer in the tails. The new filter handles the tested underflow case. The EM
-fit still uses clipped densities. Then validate legacy Heston and SABR
-conventions against independent engines. Historical vendor publication and
-revision timing also remain unverified.
+Validate legacy Heston and SABR parameter conventions against independent
+pricing and simulation engines. Historical vendor publication and revision
+timing remain unverified.

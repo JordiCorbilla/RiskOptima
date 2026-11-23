@@ -71,3 +71,24 @@ recursion in probability space. [Regression tests](../tests/test_markov_out_of_s
 | Restarted filter | Direct recurrence from fitted initial probabilities | Same data and fitted parameters | First posterior [0.999857294826, 0.000142705174], last [0.002799438009, 0.997200561991] | Same posteriors, maximum absolute difference 2.78e-17 | 1e-12 | Pass |
 | Underflow | Gaussian likelihood ratio and two-state transition | Means [0, 0], variances [1, 4], transition rows [0.9, 0.1] and [0.2, 0.8], prior [0.6, 0.4], observations [100, 0] | [0, 1], then [1/3, 2/3] | Same posteriors when both raw densities at 100 round to zero | 1e-12 | Pass |
 | Chronology | Strict date comparison and exact prefix comparison | Overlapping and out-of-order dates, and appended observations | Reject invalid dates in continuation, preserve already filtered rows and fitted state | Expected errors and equal rows | Exact | Pass |
+
+## 23 November 2026 — HMM fitting and Merton tail stability
+
+The references use enumerated hidden paths, Decimal arithmetic and
+truncated lognormal moments. The high-count Merton case uses a Poisson
+mixture with omitted second-moment tilted probability below 1e-50.
+[Regression tests](../tests/test_tail_stability.py) · [Rabiner's forward-backward procedure](https://www.cs.ubc.ca/~murphyk/Software/HMM/rabiner.pdf) · [Merton's jump-diffusion pricing paper](https://www.cmat.edu.uy/~mordecki/hk2010/merton76.pdf)
+
+| Model or invariant | Reference | Input | Expected | Actual | Tolerance | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| HMM E-step underflow | Enumerated two-state paths and transition counts | Means [0, 0], variances [1, 4], observations [0, 100, 0, -110], initial [0.6, 0.4], transition rows [0.9, 0.1] and [0.2, 0.8] | At 100, filtered [0, 1]. Full log likelihood -2770.15498588794. Three expected transitions. | Matched. v2.8.3 gave [0.725, 0.275] and log likelihood -1383.77019328225. | 1e-10 on arrays and likelihood, 1e-12 row sums | Pass |
+| HMM fit across separated states | Enumerate paths under final parameters and compare EM likelihoods | Eleven observations spanning ~0 to 108, two states, seed 18 | Correct filtered and smoothed rows and non-decreasing likelihood from one to 25 iterations | All checks passed, including stochastic transition rows | 1e-12 probabilities and 1e-10 likelihood | Pass |
+| Merton rate cancellation | Discounted lognormal paired shocks | S = K = 100, T = 1, sigma = 20%, shocks [-1, 1], zero jumps | 99.98680805421445 at r = 1e16 and zero at r = -750 | Matched. v2.8.3 rounded the positive-rate result to 100. | 1e-12 absolute | Pass |
+| Large jump compensation at tiny intensity | Decimal weighted jump drift conditional on the sampled zero-count paths | S = 1, K = 1e-250, T = 1, lambda = 1e-310, mean log jump = 720, eight paths, seed 3 | About 1.980039659e-214 for the sampled paths | About 1.980039659e-214. v2.8.3 returned zero. | 2e-10 relative | Pass |
+| Merton payoff aggregation | Decimal formula for one large payoff out of ten paths | S = K = 1, T = 1, sigma = 1, shocks [710.5, -1, ...] | (exp(710) - 1) / 10, approximately 2.234e307 | Finite and within tolerance. Single-path price raises OverflowError. | 2e-13 relative | Pass |
+| Merton deep OTM at high counts | Analytical Poisson mixture and second payoff moment | S = 100, K = 350, T = 2, r = -3.5%, sigma = 16%, lambda = 18, log jump mean = 0.04, SD = 0.14, 500,000 paths, seed 320 | 6.640950396609, standard error 0.093808223614 | 6.688766659574, about 0.51 standard errors above reference | Five standard errors (0.469041118071) | Pass |
+
+The tiny-intensity test checks the estimator's arithmetic conditional on
+what it sampled. A finite sample can miss the rare jumps that dominate an
+option's expectation. A small or zero estimate in that case provides no
+validation of the population price.
