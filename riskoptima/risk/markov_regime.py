@@ -105,71 +105,69 @@ def _clean_series(observations) -> pd.Series:
     return series
 
 
-def _filter_observations(values, means, variances, initial, transition):
-    # Relative log likelihoods retain information when all densities underflow.
-    with np.errstate(divide="ignore", over="ignore"):
-        log_prior = np.log(initial)
-        log_transition = np.log(transition)
+def _gaussian_log_density(values: np.ndarray, means: np.ndarray, variances: np.ndarray) -> np.ndarray:
+    with np.errstate(over="ignore"):
         standardized = (values[:, None] - means) / np.sqrt(variances)
-        log_emissions = -0.5 * (standardized**2 + np.log(variances))
+        return -0.5 * (standardized**2 + np.log(variances) + np.log(2.0 * np.pi))
 
-    probabilities = np.empty_like(log_emissions)
+
+def _log_probabilities(probabilities: np.ndarray) -> np.ndarray:
+    with np.errstate(divide="ignore"):
+        return np.log(probabilities)
+
+
+def _log_forward(log_emissions, initial, log_transition):
+    log_prior = _log_probabilities(initial)
+    log_alpha = np.empty_like(log_emissions)
+    centered = np.full_like(log_emissions, -np.inf)
+    log_scales = np.empty(len(log_emissions))
     for row, log_emission in enumerate(log_emissions):
         reachable = np.isfinite(log_prior)
-        offset = np.max(log_emission[reachable])
+        offset = np.max(log_emission, where=reachable, initial=-np.inf)
         if not np.isfinite(offset):
             raise ValueError("observations are too extreme for the fitted Gaussian variances")
-        log_joint = np.full_like(log_prior, -np.inf)
-        log_joint[reachable] = log_prior[reachable] + (log_emission[reachable] - offset)
-        log_posterior = log_joint - logsumexp(log_joint)
-        probabilities[row] = np.exp(log_posterior)
-        log_prior = logsumexp(log_posterior[:, None] + log_transition, axis=0)
-    return probabilities
+
+        # Center before including the prior so a large common negative
+        # likelihood cannot round away the relative state probabilities.
+        np.subtract(log_emission, offset, out=centered[row], where=reachable)
+        log_joint = log_prior + centered[row]
+        normalizer = np.logaddexp.reduce(log_joint)
+        log_alpha[row] = log_joint - normalizer
+        log_scales[row] = offset + normalizer
+        log_prior = np.logaddexp.reduce(log_alpha[row, :, None] + log_transition, axis=0)
+    return log_alpha, centered, log_scales
 
 
-
-def _gaussian_density(values: np.ndarray, means: np.ndarray, variances: np.ndarray) -> np.ndarray:
-    variances = np.maximum(variances, 1e-10)
-    diff = values[:, None] - means[None, :]
-    density = np.exp(-0.5 * diff**2 / variances[None, :]) / np.sqrt(2.0 * np.pi * variances[None, :])
-    return np.maximum(density, 1e-300)
+def _filter_observations(values, means, variances, initial, transition):
+    emissions = _gaussian_log_density(values, means, variances)
+    log_alpha, _, _ = _log_forward(emissions, initial, _log_probabilities(transition))
+    return np.exp(log_alpha)
 
 
-def _forward_backward(emissions: np.ndarray, initial: np.ndarray, transition: np.ndarray):
-    n_obs, n_states = emissions.shape
-    alpha = np.zeros((n_obs, n_states))
-    beta = np.zeros((n_obs, n_states))
-    scales = np.zeros(n_obs)
+def _forward_backward(log_emissions: np.ndarray, initial: np.ndarray, transition: np.ndarray):
+    log_transition = _log_probabilities(transition)
+    log_alpha, centered, log_scales = _log_forward(log_emissions, initial, log_transition)
+    log_beta = np.full_like(log_alpha, -np.inf)
+    log_beta[-1, np.isfinite(log_alpha[-1])] = 0.0
+    transition_counts = np.zeros_like(transition)
+    for row in range(len(log_alpha) - 2, -1, -1):
+        reachable = np.isfinite(log_alpha[row])
+        next_weights = centered[row + 1] + log_beta[row + 1]
+        next_states = log_transition + next_weights
+        log_weights = np.logaddexp.reduce(next_states, axis=1)
+        offset = np.max(log_weights, where=reachable, initial=-np.inf)
+        np.subtract(log_weights, offset, out=log_beta[row], where=reachable)
+        # Accumulate pair probabilities in place without a time-by-state-pair tensor.
+        log_pairs = log_alpha[row, :, None] + next_states
+        transition_counts += np.exp(log_pairs - np.logaddexp.reduce(log_pairs, axis=None))
 
-    alpha[0] = initial * emissions[0]
-    scales[0] = max(alpha[0].sum(), 1e-300)
-    alpha[0] /= scales[0]
-
-    for t in range(1, n_obs):
-        alpha[t] = emissions[t] * (alpha[t - 1] @ transition)
-        scales[t] = max(alpha[t].sum(), 1e-300)
-        alpha[t] /= scales[t]
-
-    beta[-1] = 1.0
-    for t in range(n_obs - 2, -1, -1):
-        beta[t] = transition @ (emissions[t + 1] * beta[t + 1])
-        beta[t] /= max(scales[t + 1], 1e-300)
-
-    gamma = alpha * beta
-    gamma /= np.maximum(gamma.sum(axis=1, keepdims=True), 1e-300)
-
-    xi_sum = np.zeros((n_states, n_states))
-    for t in range(n_obs - 1):
-        xi = (
-            alpha[t, :, None]
-            * transition
-            * emissions[t + 1, None, :]
-            * beta[t + 1, None, :]
-        )
-        xi_sum += xi / max(xi.sum(), 1e-300)
-
-    log_likelihood = float(np.log(scales).sum())
-    return alpha, gamma, xi_sum, log_likelihood
+    log_gamma = log_alpha + log_beta
+    log_gamma -= logsumexp(log_gamma, axis=1, keepdims=True)
+    with np.errstate(over="ignore"):
+        log_likelihood = float(log_scales.sum())
+    if not np.isfinite(log_likelihood):
+        raise ValueError("log likelihood is outside the representable range")
+    return np.exp(log_alpha), np.exp(log_gamma), transition_counts, log_likelihood
 
 
 def fit_markov_regime_model(
@@ -198,26 +196,35 @@ def fit_markov_regime_model(
     values = series.to_numpy(dtype=float)
     rng = np.random.default_rng(random_state)
     quantiles = np.linspace(0.1, 0.9, n_regimes)
-    means = np.quantile(values, quantiles)
-    means = means + rng.normal(0.0, max(values.std(ddof=0), 1e-6) * 1e-3, size=n_regimes)
-    variances = np.repeat(max(values.var(ddof=0), 1e-8), n_regimes)
+    with np.errstate(over="ignore", invalid="ignore"):
+        variance = values.var(ddof=0)
+        means = np.quantile(values, quantiles)
+        means = means + rng.normal(0.0, max(np.sqrt(variance), 1e-6) * 1e-3, size=n_regimes)
+    if not np.isfinite(variance) or not np.isfinite(means).all():
+        raise ValueError("observations are too extreme for a finite Gaussian fit")
+    variances = np.repeat(max(variance, 1e-8), n_regimes)
     transition = np.full((n_regimes, n_regimes), 0.05 / max(n_regimes - 1, 1))
     np.fill_diagonal(transition, 0.95)
     initial = np.repeat(1.0 / n_regimes, n_regimes)
 
-    emissions = _gaussian_density(values, means, variances)
+    emissions = _gaussian_log_density(values, means, variances)
     alpha, gamma, xi_sum, log_likelihood = _forward_backward(emissions, initial, transition)
     for _ in range(n_iter):
-        weights = np.maximum(gamma.sum(axis=0), 1e-300)
-
-        initial = gamma[0] / gamma[0].sum()
-        transition = xi_sum / np.maximum(xi_sum.sum(axis=1, keepdims=True), 1e-300)
-        means = (gamma * values[:, None]).sum(axis=0) / weights
-        variances = (gamma * (values[:, None] - means[None, :]) ** 2).sum(axis=0) / weights
-        variances = np.maximum(variances, 1e-10)
+        weights = gamma.sum(axis=0)
+        visited = weights > 0
+        state_weights = gamma[:, visited] / weights[visited]
+        initial = gamma[0]
+        row_counts = xi_sum.sum(axis=1, keepdims=True)
+        transition = np.divide(xi_sum, row_counts, out=transition.copy(), where=row_counts > 0)
+        means[visited] = (state_weights * values[:, None]).sum(axis=0)
+        with np.errstate(over="ignore", invalid="ignore"):
+            residuals = np.sqrt(state_weights) * (values[:, None] - means[visited])
+            variances[visited] = np.maximum((residuals**2).sum(axis=0), 1e-10)
+        if not np.isfinite(means).all() or not np.isfinite(variances).all():
+            raise ValueError("observations are too extreme for a finite Gaussian fit")
 
         previous_ll = log_likelihood
-        emissions = _gaussian_density(values, means, variances)
+        emissions = _gaussian_log_density(values, means, variances)
         alpha, gamma, xi_sum, log_likelihood = _forward_backward(emissions, initial, transition)
         if abs(log_likelihood - previous_ll) < tol:
             break

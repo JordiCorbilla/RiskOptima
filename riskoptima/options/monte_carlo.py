@@ -68,6 +68,7 @@ def merton_jump_diffusion_call(
     Rates and jump intensity are annual, maturity is in years, and jump
     parameters describe the normal distribution of individual log multipliers.
     With no seed, use NumPy's legacy global RNG for existing RiskOptima callers.
+    The estimate can miss rare, large payoffs even when the arithmetic is stable.
     """
     inputs = np.asarray([S, K, T, r, sigma, jump_intensity, log_jump_mean, log_jump_std], dtype=float)
     if not np.isfinite(inputs).all():
@@ -81,16 +82,45 @@ def merton_jump_diffusion_call(
     if T == 0:
         return float(max(S - K, 0.0))
 
+    S, K, T, r, sigma, jump_intensity, log_jump_mean, log_jump_std = inputs
     rng = np.random if random_state is None else np.random.default_rng(random_state)
-    drift = (r - 0.5 * sigma**2) * T
-    log_return = drift + sigma * np.sqrt(T) * rng.standard_normal(n_sims)
-    if jump_intensity > 0:
-        compensator = np.expm1(log_jump_mean + 0.5 * log_jump_std**2)
-        counts = rng.poisson(jump_intensity * T, size=n_sims)
-        log_return += (
-            -jump_intensity * compensator * T
-            + counts * log_jump_mean
-            + np.sqrt(counts) * log_jump_std * rng.standard_normal(n_sims)
-        )
-    discounted_payoff = np.maximum(S * np.exp(log_return - r * T) - K * np.exp(-r * T), 0.0)
-    return float(discounted_payoff.mean())
+    with np.errstate(over="ignore", invalid="ignore"):
+        diffusion_scale = sigma * np.sqrt(T)
+        log_return = -(0.5 * diffusion_scale) * diffusion_scale
+        log_return = log_return + diffusion_scale * rng.standard_normal(n_sims)
+        log_ratio = np.log(S) - np.log(K)
+        if abs(S - K) <= 0.5 * K:
+            log_ratio = np.log1p((S - K) / K)
+        forward_moneyness = log_ratio + r * T
+        if jump_intensity > 0:
+            jump_count_mean = jump_intensity * T
+            jump_log_expectation = log_jump_mean + (0.5 * log_jump_std) * log_jump_std
+            if jump_log_expectation > 0:
+                # Scale in log units before exponentiating a large jump mean.
+                log_compensator = jump_log_expectation + np.log(-np.expm1(-jump_log_expectation))
+                compensation = np.exp(np.log(jump_intensity) + np.log(T) + log_compensator)
+            else:
+                compensation = jump_count_mean * np.expm1(jump_log_expectation)
+            if not np.isfinite(compensation):
+                raise ValueError("Merton jump compensation is outside the representable range")
+            counts = rng.poisson(jump_count_mean, size=n_sims)
+            log_return += (
+                -compensation + counts * log_jump_mean
+                + np.sqrt(counts) * log_jump_std * rng.standard_normal(n_sims)
+            )
+    if not np.isfinite(log_return).all():
+        raise ValueError("Merton terminal log prices are outside the representable range")
+
+    with np.errstate(over="ignore"):
+        moneyness = forward_moneyness + log_return
+    in_the_money = moneyness > 0
+    if not in_the_money.any():
+        return 0.0
+    with np.errstate(over="ignore"):
+        log_payoff = np.log(S) + log_return[in_the_money] + np.log(-np.expm1(-moneyness[in_the_money]))
+        peak = log_payoff.max()
+        scaled_mean = np.exp(log_payoff - peak).sum() / n_sims
+        price = float(np.exp(peak + np.log(scaled_mean)))
+    if not np.isfinite(price):
+        raise OverflowError("Merton call price is outside the representable range")
+    return price
