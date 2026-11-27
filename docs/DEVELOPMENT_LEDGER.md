@@ -98,8 +98,19 @@ The ledger separates arithmetic stability from rare-event Monte Carlo
 sampling error. Local Windows verification passed the 179 tests that ran
 without QuantLib. The existing QuantLib regressions run in the Linux CI matrix.
 
+## 27 November 2026 — Heston and SABR conventions
+
+Corrected the SABR forward coefficient, signed normal forwards and path
+endpoints. Heston now shares a log-spot, full-truncation variance step
+between simulation and pricing. The call is exact when variance is
+deterministic. The legacy Heston variance units and the Platform payload
+shape are preserved. Notebook 04 plots annualized relative volatility.
+See [ADR 0003](adr/0003-stochastic-volatility-conventions.md) and the
+[numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md).
+
 ## Next outstanding item
 
-Validate legacy Heston and SABR parameter conventions against independent
-pricing and simulation engines. Historical vendor publication and revision
-timing remain unverified.
+Use the coverage report to select high-impact untested legacy branches and
+add caller-level regression tests. Historical vendor publication and
+revision timing, Platform volatility label migration and coarse-grid
+accuracy near the stochastic volatility boundaries remain open.

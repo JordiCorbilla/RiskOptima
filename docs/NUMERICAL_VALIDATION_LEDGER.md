@@ -92,3 +92,31 @@ The tiny-intensity test checks the estimator's arithmetic conditional on
 what it sampled. A finite sample can miss the rare jumps that dominate an
 option's expectation. A small or zero estimate in that case provides no
 validation of the population price.
+
+## 27 November 2026 — Heston and SABR conventions
+
+The Heston Monte Carlo standard errors come from six independent batches
+of 20,000 terminal payoffs, using seeds 105 through 110. The SABR
+standard error comes from 6,000 path payoffs, using seed 774. The
+statistical tolerances are five standard errors. These comparisons assess
+agreement at the stated grids and parameters. They do not bound
+discretization error for arbitrary settings.
+
+[Regression tests](../tests/test_stochastic_volatility.py) · [Heston model](https://finance.martinsewell.com/stylized-facts/volatility/Heston1993.pdf) · [Hagan et al., equation 2.15](https://lesniewski.us/papers/published/ManagingSmileRisk.pdf) · [QuantLib Heston engine](https://github.com/lballabio/QuantLib/blob/master/ql/pricingengines/vanilla/analytichestonengine.cpp) · [QuantLib SABR engine](https://github.com/lballabio/QuantLib/blob/master/ql/pricingengines/vanilla/fdsabrvanillaengine.cpp)
+
+| Model or invariant | Reference | Input | Expected | Actual | Tolerance | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Heston deterministic variance call | Integrated CIR variance and analytical lognormal call | S = 100, K = 105, T = 1.4, r = -0.02, kappa = 1.5, theta = 0.04, eta = 0, v0 = 0.07 | 7.669693726565 | 7.669693726565 | 1e-12 absolute | Pass |
+| Heston call satisfying Feller | QuantLib 1.44 `AnalyticHestonEngine`, order 144 | S = 100, K = 105, T = 1, r = -0.02, kappa = 1.5, theta = 0.04, eta = 0.3, rho = -0.65, v0 = 0.07, 512 steps | 5.775029923523 | 5.761112854398 | 0.178478824010 absolute | Pass |
+| Heston call violating Feller | Same engine | Same inputs with eta = 0.65 | 4.540518563362 | 4.565201338013 | 0.120224402290 absolute | Pass |
+| Heston path endpoint | Zero-variance risk-neutral spot, `S0 * exp(r*T)` | S0 = 100, r = 0.05, T = 1, N = 2, v0 = theta = 0 | 105.127109637602 | 105.127109637602. The previous endpoint was 102.5. | 1e-12 absolute | Pass |
+| SABR fractional forward and level | Hagan diffusion coefficient and exact correlated lognormal level | F0 = 100, level = 0.2, T = 1, N = 2, beta = 0.5, nu = 0.3, rho = -0.4, seed 42 | End forward 100.60943416 and level 0.13849067 | Matched both values at full precision | 1e-12 absolute | Pass |
+| SABR normal and lognormal limits | Exact Brownian and geometric Brownian paths | nu = 0, level = 0.4, beta = 0 and 1, T = 1.5, N = 8, seed 42 | Signed forward path for beta = 0, exact positive forward path for beta = 1 | Both paths matched | 1e-12 absolute | Pass |
+| SABR fractional-beta call | QuantLib 1.44 `FdSabrVanillaEngine`, grid 100 × 400 × 50 | F0 = 100, K = 102, T = 183/365, level = 2, beta = 0.5, nu = 0.4, rho = -0.35, no discount, 64 simulation steps | 4.713201221780 | 4.720527853330 | 0.489517803275 absolute | Pass |
+| SABR scale invariance | Same Brownian path after rescaling forward by c and level by c^(1 − beta) | Hypothesis over c in [0.01, 10], beta in [0, 1], nine points and 40 seeds or parameter combinations | Entire forward and level paths scale by their unit conversion factors | All generated cases matched | 1e-12 absolute and 1e-13 relative | Pass |
+
+The Windows Heston timing fixture used 10,000 paths, 100 steps and the
+first stochastic call's parameters. One run took 13.27 seconds before the
+change and 0.39 seconds after vectorizing the path updates. The seeded
+sample estimate changed from 5.708306 to 5.859125 because draw ordering and
+the discretization changed.

@@ -2934,42 +2934,23 @@ class RiskOptima:
         return _black_scholes_price(*values, option_type="call")
 
     @staticmethod
-    def heston(S_0, X, T, r, kappa, theta, sigma_v, rho, v_0, num_simulations=10000, num_steps=100):
+    def heston(
+        S_0, X, T, r, kappa, theta, sigma_v, rho, v_0,
+        num_simulations=10000, num_steps=100, *, random_state=None,
+    ):
+        """Price a European call under risk-neutral Heston with zero dividends.
+
+        ``T`` is in years, ``r`` is continuously compounded, ``kappa`` is the
+        mean-reversion speed of variance, and ``theta`` and ``v_0`` are
+        annualized variances. ``sigma_v`` multiplies the square root of
+        variance in its diffusion, and ``rho`` correlates its shock with
+        the spot shock. Pricing uses log spot and full-truncation Euler
+        variance, with an exact deterministic-variance limit at ``sigma_v=0``.
+        The default RNG follows NumPy's global seed.
         """
-        Computes the option price using the Heston model via Monte Carlo simulation.
+        from riskoptima.options._stochastic_volatility import heston_call
 
-        :param float S_0: Initial price of the underlying asset.
-        :param float X: Strike price of the option.
-        :param float T: Time to expiration in years.
-        :param float r: Risk-free interest rate.
-        :param float kappa: Mean reversion rate of volatility.
-        :param float theta: Long-term mean of volatility.
-        :param float sigma_v: Volatility of volatility.
-        :param float rho: Correlation between asset return and volatility.
-        :param float v_0: Initial variance.
-        :param int num_simulations: Number of simulations (default: 10000).
-        :param int num_steps: Number of steps in the simulation (default: 100).
-        :return: The estimated option price using the Heston model as a float.
-        """
-        dt = T / num_steps
-        option_payoffs = []
-
-        for _ in range(num_simulations):
-            S_t = S_0
-            v_t = v_0
-            for _ in range(num_steps):
-                z1, z2 = np.random.normal(size=2)
-                z2 = rho * z1 + np.sqrt(1 - rho ** 2) * z2
-                S_t += r * S_t * dt + np.sqrt(v_t) * S_t * z1 * np.sqrt(dt)
-                v_t += kappa * (theta - v_t) * dt + sigma_v * np.sqrt(v_t) * z2 * np.sqrt(dt)
-                v_t = max(v_t, 0)
-            option_payoff = max(S_t - X, 0)
-            option_payoffs.append(option_payoff)
-
-        average_payoff = np.mean(option_payoffs)
-        option_price = np.exp(-r * T) * average_payoff
-
-        return option_price
+        return heston_call(S_0, X, T, r, kappa, theta, sigma_v, rho, v_0, num_simulations, num_steps, random_state)
 
     @staticmethod
     def merton_jump_diffusion(
@@ -3112,56 +3093,38 @@ class RiskOptima:
         return S, sigma
 
     @staticmethod
-    def simulate_heston(S0=100, sigma0=0.2, r=0.05, T=1.0, N=252, rho=-0.5, kappa=0.5, theta=0.2, eta=0.1):
+    def simulate_heston(
+        S0=100, sigma0=0.2, r=0.05, T=1.0, N=252,
+        rho=-0.5, kappa=0.5, theta=0.2, eta=0.1, *, random_state=None,
+    ):
+        """Return spot and non-negative variance arrays for a Heston path.
+
+        The legacy name ``sigma0`` denotes initial annualized variance and
+        ``theta`` is its long-run level. For 20% initial volatility, pass
+        ``sigma0=0.2**2``. Take the square root of the returned variance
+        array to obtain annualized volatility. ``eta`` is the diffusion
+        coefficient of variance. ``N`` counts samples from time zero to
+        ``T`` years, with only the initial point when ``N=1``.
+        The default RNG follows NumPy's global seed.
         """
-        Simulates the Heston model for stochastic volatility.
+        from riskoptima.options._stochastic_volatility import simulate_heston_path
 
-        Equations:
-        dS(t) = r S(t) dt + σ(t) S(t) dW₁(t)
-        dσ(t) = κ (θ - σ(t)) dt + η sqrt(σ(t)) dW₂(t)
-        dW₁(t) dW₂(t) = ρ dt
-
-        Returns:
-        - S: Simulated asset prices
-        - sigma: Simulated volatilities
-        """
-        dt = T / N
-        S = np.zeros(N)
-        sigma = np.zeros(N)
-        S[0], sigma[0] = S0, sigma0
-
-        for t in range(1, N):
-            dW1 = np.random.normal(0, np.sqrt(dt))
-            dW2 = rho * dW1 + np.sqrt(1 - rho**2) * np.random.normal(0, np.sqrt(dt))
-            sigma[t] = max(0, sigma[t-1] + kappa * (theta - sigma[t-1]) * dt + eta * np.sqrt(sigma[t-1]) * dW2)
-            S[t] = S[t-1] * (1 + r * dt + np.sqrt(sigma[t-1]) * dW1)
-        return S, sigma
+        return simulate_heston_path(S0, sigma0, r, T, N, rho, kappa, theta, eta, random_state)
 
     @staticmethod
-    def simulate_sabr(F0=100, sigma0=0.2, T=1.0, N=252, rho=-0.5, beta=0.5, alpha=0.2):
+    def simulate_sabr(F0=100, sigma0=0.2, T=1.0, N=252, rho=-0.5, beta=0.5, alpha=0.2, *, random_state=None):
+        """Return forward and SABR diffusion-level arrays.
+
+        ``sigma0`` is Hagan's initial alpha and the legacy ``alpha`` is
+        Hagan's vol-of-vol (nu). The instantaneous forward diffusion is
+        ``level * F**beta``. The normal case (``beta=0``) allows signed
+        forwards. Fractional beta uses Euler with absorption at zero.
+        ``N`` counts samples from time zero to ``T`` years, with only the
+        initial point when ``N=1``. The default RNG follows NumPy's global seed.
         """
-        Simulates the SABR model for forward price volatility.
+        from riskoptima.options._stochastic_volatility import simulate_sabr_path
 
-        Equations:
-        dF(t) = σ(t) F(t)^β dW₁(t)
-        dσ(t) = α σ(t) dW₂(t)
-        dW₁(t) dW₂(t) = ρ dt
-
-        Returns:
-        - F: Simulated forward prices
-        - sigma: Simulated volatilities
-        """
-        dt = T / N
-        F = np.zeros(N)
-        sigma = np.zeros(N)
-        F[0], sigma[0] = F0, sigma0
-
-        for t in range(1, N):
-            dW1 = np.random.normal(0, np.sqrt(dt))
-            dW2 = rho * dW1 + np.sqrt(1 - rho**2) * np.random.normal(0, np.sqrt(dt))
-            sigma[t] = max(0, sigma[t-1] + alpha * sigma[t-1] * dW2)
-            F[t] = max(0, F[t-1] * (1 + sigma[t-1] * (max(F[t-1], 1e-6) ** beta) * dW1))
-        return F, sigma
+        return simulate_sabr_path(F0, sigma0, T, N, rho, beta, alpha, random_state)
 
     @staticmethod
     def run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window):
