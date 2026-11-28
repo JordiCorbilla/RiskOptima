@@ -32,6 +32,12 @@ https://pypistats.org/packages/riskoptima
 
 RiskOptima is for research and educational use only. Its reports and scores are **not investment advice** or recommendations to buy, sell or hold any instrument. Models and third-party data may be incomplete or inaccurate; past performance does not guarantee future results. Independently verify inputs and results before making investment decisions.
 
+## What's New in 2.8.4
+
+- Heston pricing and paths share a full-truncation variance step. The European call price uses the analytical solution when variance is deterministic.
+- SABR paths use the correct forward diffusion and support signed forwards in the normal case. Both path simulators reach the requested horizon.
+- Markov fitting handles emission underflow, and Merton pricing uses more stable jump compensation and payoff averaging. [Full release notes](https://github.com/JordiCorbilla/RiskOptima/blob/main/docs/RELEASE_NOTES_v2.8.4.md)
+
 ## What's New in 2.8.3
 
 - Shared Black-Scholes pricing and Greeks preserve the legacy reporting units and handle expiry correctly. U.S. 30/360 now applies the February month-end rules.
@@ -456,7 +462,7 @@ Run notebooks from the repository root so local sample paths and the checkout re
 Notebook setup cells do not upgrade RiskOptima automatically. In a fresh environment, install the desired release before opening Jupyter:
 
 ```bash
-python -m pip install "riskoptima==2.8.3" jupyter
+python -m pip install "riskoptima==2.8.4" jupyter
 python -m jupyter lab
 ```
 

@@ -108,6 +108,21 @@ shape are preserved. Notebook 04 plots annualized relative volatility.
 See [ADR 0003](adr/0003-stochastic-volatility-conventions.md) and the
 [numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md).
 
+## 28 November 2026 — RiskOptima 2.8.4
+
+Published the wheel and source archive built from `cf3d9e4`. The public
+SHA-256 digests match the validated artifacts. Installing from either
+artifact passed numerical smoke checks, and the source archive rebuilt
+the same wheel. All 234 tests passed. Line coverage was 71.0487% and
+branch coverage was 59.9617%. Six Platform backend tests and the
+stochastic-volatility endpoint passed against the public installation.
+
+Executed all 14 notebooks in fresh kernels against the published wheel
+and refreshed their saved outputs and installation pins. The live
+dislocation notebook completed 11 of 11 analyses. See the
+[release notes](RELEASE_NOTES_v2.8.4.md) and
+[PyPI release](https://pypi.org/project/riskoptima/2.8.4/).
+
 ## Next outstanding item
 
 Use the coverage report to select high-impact untested legacy branches and
