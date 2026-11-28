@@ -3127,82 +3127,22 @@ class RiskOptima:
         return simulate_sabr_path(F0, sigma0, T, N, rho, beta, alpha, random_state)
 
     @staticmethod
-    def run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window):
-        # ------------------------------
-        # 1. Fetch Data
-        # ------------------------------
+    def run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window, *, execution="same_close"):
+        """Plot VIX divergence entries and return the entry table and price frame.
+
+        The default reports retrospective pivot dates. With ``next_close``,
+        ``PivotDate`` identifies the lower low and ``ConfirmationDate`` is
+        the next observed base close. ``SignalDate`` and ``base_Close`` then
+        give the entry fill on the following available base close. ``VIX_Close``
+        describes the pivot. An unfilled entry is omitted.
+        """
+        from riskoptima.backtest._vix import validate_vix_execution, vix_close_frame, vix_entries
+
+        validate_vix_execution(execution)
         df_base = yf.download(symbol_base, start=start_date, end=end_date, progress=False, auto_adjust=False)
         df_vix = yf.download(symbol_vix, start=start_date, end=end_date, progress=False, auto_adjust=False)
-
-        # We only need the 'Close' column from each
-        df_base = df_base[['Close']]
-        df_vix = df_vix[['Close']]
-
-        # Rename columns for clarity
-        df_base.columns = ['base_Close']
-        df_vix.columns = ['VIX_Close']
-
-        # Combine into a single DataFrame on common dates
-        df = pd.merge(df_base, df_vix, how='inner', left_index=True, right_index=True)
-
-        # ------------------------------
-        # 2. Compute MA, std, ±2σ bands
-        # ------------------------------
-        df['MA30'] = df['base_Close'].rolling(ma_window).mean()
-        df['STD30'] = df['base_Close'].rolling(ma_window).std()
-        df['Upper_Band'] = df['MA30'] + 2 * df['STD30']
-        df['Lower_Band'] = df['MA30'] - 2 * df['STD30']
-
-        # ------------------------------
-        # Helper: find local minima
-        # ------------------------------
-        def is_local_min(series, i):
-            if i == 0 or i == len(series) - 1:
-                return False
-            return series.iloc[i] < series.iloc[i - 1] and series.iloc[i] < series.iloc[i + 1]
-
-        # ------------------------------
-        # 3. Detect signals
-        # ------------------------------
-        signals = []
-
-        # Identify indices where SPY is a local minimum
-        min_indices = []
-        for i in range(1, len(df) - 1):
-            if is_local_min(df['base_Close'], i):
-                min_indices.append(i)
-
-        # Look for pairs of consecutive local minima to see if the second is a "lower low"
-        for idx in range(len(min_indices) - 1):
-            i1 = min_indices[idx]
-            i2 = min_indices[idx + 1]
-
-            # First and second local minima
-            low1 = df['base_Close'].iloc[i1]
-            low2 = df['base_Close'].iloc[i2]
-
-            # We want: low2 < low1 (a "second lower low")
-            if low2 < low1:
-                # Check VIX "spikes"
-                vix1 = df['VIX_Close'].iloc[i1]
-                vix2 = df['VIX_Close'].iloc[i2]
-
-                # Conditions: higher VIX and SPY within ±2σ
-                if (vix2 > vix1) and \
-                   (df['base_Close'].iloc[i2] <= df['Upper_Band'].iloc[i2]) and \
-                   (df['base_Close'].iloc[i2] >= df['Lower_Band'].iloc[i2]):
-
-                    signal_date = df.index[i2]
-                    close_price = df['base_Close'].iloc[i2]
-
-                    signals.append({
-                        'SignalDate': signal_date,
-                        'base_Close': close_price,
-                        'VIX_Close': vix2,
-                        'Comment': 'Second lower low + higher VIX + within ±2σ'
-                    })
-
-        df_signals = pd.DataFrame(signals)
+        df = vix_close_frame(df_base, df_vix, ma_window, execution)
+        df_signals = vix_entries(df, execution)
 
         # ------------------------------
         # 4. Plot the data and signals
@@ -3213,7 +3153,7 @@ class RiskOptima:
 
         # Plot SPY
         ax1.plot(df.index, df['base_Close'], label=f'{symbol_base} Close', color='blue')
-        ax1.plot(df.index, df['MA30'], label=f'30-day MA ({symbol_base})', color='orange')
+        ax1.plot(df.index, df['MA30'], label=f'{ma_window}-session MA ({symbol_base})', color='orange')
         ax1.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)',
                  color='orange', linestyle='--', alpha=0.6)
         ax1.plot(df.index, df['Lower_Band'], label='Lower Band (MA - 2σ)',
@@ -3226,7 +3166,7 @@ class RiskOptima:
             color='green',
             marker='^',
             s=100,
-            label='Entry Signal'
+            label='Entry Fill' if execution == 'next_close' else 'Entry Signal'
         )
 
         for i, row in df_signals.iterrows():
@@ -3289,46 +3229,24 @@ class RiskOptima:
 
 
     @staticmethod
-    def exit_strategy(df, df_signals, symbol_base='SPY', intraday=True):
-        """Identify exit points for each entry based on the exit strategy."""
-        exits = []
-        for index, signal in df_signals.iterrows():
-            entry_date = signal['SignalDate']
-            entry_price = signal['base_Close']
+    def exit_strategy(df, df_signals, symbol_base='SPY', intraday=True, *, execution="same_close"):
+        """Identify exits from close-based moving-average and band rules.
 
-            # Find the data after the signal date
-            df_after_entry = df.loc[entry_date:]
+        With ``intraday=False``, exit checks start after the entry date.
+        With ``next_close``, the trigger is recorded in ``ExitSignalDate``
+        and the order fills at the following available close. Triggers
+        without a later quote produce no exit.
+        """
+        from riskoptima.backtest._vix import validate_vix_execution, vix_exits
 
-            for i, row in df_after_entry.iterrows():
-                # First exit condition: SPY goes above the 30-day moving average
-                if row['base_Close'] > row['MA30']:
-                    if intraday or (i != entry_date):
-                        exits.append({
-                            'EntryDate': entry_date,
-                            'ExitDate': i,
-                            'EntryPrice': entry_price,
-                            'ExitPrice': row['base_Close'],
-                            'Reason': 'Above 30-day MA'
-                        })
-                    break
-
-                # Second exit condition: SPY goes below the lower Bollinger band
-                if row['base_Close'] < row['Lower_Band']:
-                    if intraday or (i != entry_date):
-                        exits.append({
-                            'EntryDate': entry_date,
-                            'ExitDate': i,
-                            'EntryPrice': entry_price,
-                            'ExitPrice': row['base_Close'],
-                            'Reason': 'Below Lower Band'
-                        })
-                    break
-
-        return pd.DataFrame(exits)
+        validate_vix_execution(execution)
+        return vix_exits(df, df_signals, intraday, execution)
 
     @staticmethod
     def calculate_total_returns(df_signals, df_exits):
         """Calculate total returns based on entry and exit points."""
+        from riskoptima.backtest._vix import RETURN_COLUMNS
+
         returns = []
         total_return = 0
         for _, exit_row in df_exits.iterrows():
@@ -3344,19 +3262,19 @@ class RiskOptima:
                 'PnL': pnl,
                 'TotalReturn': total_return
             })
-        return pd.DataFrame(returns)
+        return pd.DataFrame.from_records(returns, columns=RETURN_COLUMNS)
 
     @staticmethod
     def plot_exit_strategy(df, df_signals, df_exits, start_date, end_date, symbol_base):
         """Plot the exit strategy with entry and exit points."""
         fig, ax = plt.subplots(figsize=(20, 12))
 
-        title=f'[RiskOptima] SPY & VIX Index Vol Divergence Entry/Exit Signals {start_date} to {end_date}'
-        ax.set_title(title)
+        point_type = 'Fill' if 'ConfirmationDate' in df_signals else 'Signal'
+        ax.set_title(f'[RiskOptima] {symbol_base} & VIX Index Vol Divergence Entry/Exit {point_type}s {start_date} to {end_date}')
 
         # Plot SPY
         ax.plot(df.index, df['base_Close'], label=f'{symbol_base} Close', color='blue')
-        ax.plot(df.index, df['MA30'], label=f'30-day MA ({symbol_base})', color='orange')
+        ax.plot(df.index, df['MA30'], label=f'Moving average ({symbol_base})', color='orange')
         ax.plot(df.index, df['Upper_Band'], label='Upper Band (MA + 2σ)',
                 color='orange', linestyle='--', alpha=0.6)
         ax.plot(df.index, df['Lower_Band'], label='Lower Band (MA - 2σ)',
@@ -3369,7 +3287,7 @@ class RiskOptima:
             color='green',
             marker='^',
             s=100,
-            label='Entry Signal'
+            label=f'Entry {point_type}'
         )
 
         for i, row in df_signals.iterrows():
@@ -3386,7 +3304,7 @@ class RiskOptima:
             color='red',
             marker='v',
             s=100,
-            label='Exit Signal'
+            label=f'Exit {point_type}'
         )
 
         for i, row in df_exits.iterrows():
@@ -3435,16 +3353,28 @@ class RiskOptima:
 
     @staticmethod
     def run_index_vol_divergence_signals(start_date = "2024-01-01", end_date = "2025-01-14",
-                                         symbol_base = "SPY", symbol_vix = "^VIX", ma_window = 30):
+                                         symbol_base = "SPY", symbol_vix = "^VIX", ma_window = 30,
+                                         *, execution="same_close"):
+        """Report entry and exit fills and returns for VIX divergence.
+
+        Pass ``execution="next_close"`` for point-in-time execution of
+        close-based signals. The retrospective default reports hypothetical
+        entry prices from before the pivot could be confirmed.
         """
-        Example usage of the full pipeline in one function call.
-        Adjust your 'plots/' directory path as needed.
-        """
+        if execution == "same_close":
+            warnings.warn(
+                "The retrospective VIX default is deprecated for trade returns. "
+                "Pass execution='next_close' for point-in-time daily close fills.",
+                FutureWarning,
+                stacklevel=2,
+            )
 
         # 1) Fetch signals
-        df_signals, df = RiskOptima.run_base_vix_strategy(start_date, end_date, symbol_base, symbol_vix, ma_window)
+        df_signals, df = RiskOptima.run_base_vix_strategy(
+            start_date, end_date, symbol_base, symbol_vix, ma_window, execution=execution,
+        )
         # 2) Calculate exits
-        df_exits = RiskOptima.exit_strategy(df, df_signals, symbol_base, intraday=False)
+        df_exits = RiskOptima.exit_strategy(df, df_signals, symbol_base, intraday=False, execution=execution)
         # 3) Calculate returns
         returns = RiskOptima.calculate_total_returns(df_signals, df_exits)
         # 4) Plot and summarize
