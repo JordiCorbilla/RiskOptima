@@ -151,6 +151,23 @@ checks. All 249 tests passed. The VIX calculation module covered all
 [ADR 0004](adr/0004-vix-execution-timing.md) and the
 [numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md).
 
+## 28 November 2026 — RiskOptima 2.8.5
+
+Combined the VIX and portfolio Monte Carlo fixes from PRs #15 and #16.
+The public wheel and source archive match the validated artifacts at
+`f20c2d3`. The published source archive reproduced the wheel. All 270
+tests passed both in the checkout and against the public wheel. Coverage
+was 76.7920% for lines and 64.6203% for branches. All six Platform
+backend tests and the stochastic-volatility endpoint passed with 2.8.5.
+
+Refreshed the installation pins and outputs of all 14 notebooks after
+executing them end to end against the public wheel in fresh kernels.
+Notebook 02 uses a fixed seed for the portfolio probability report.
+Both notebook 03 examples passed checks for chronological next-close
+fills. The live dislocation notebook completed 11 of 11 analyses.
+See [release notes](RELEASE_NOTES_v2.8.5.md) and
+[PyPI release](https://pypi.org/project/riskoptima/2.8.5/).
+
 ## Next outstanding item
 
 Audit the legacy earnings straddle backtester. Check signal and fill
