@@ -2237,144 +2237,37 @@ class RiskOptima:
         risk_free_rate=4.611 / 100,
         number_of_portfolio_weights=10_000,
         trading_days_per_year=260,
-        number_of_monte_carlo_runs=1_000
+        number_of_monte_carlo_runs=1_000,
+        *,
+        random_state=None,
     ):
+        """Compare sampled portfolios and a benchmark using daily close returns.
+
+        Columns and covariance follow the order of ``investment_allocation``.
+        The covariance is a daily sample covariance. Candidate returns and
+        volatilities are annualized arithmetic estimates. Candidate weights
+        retain the legacy normalized-uniform draw convention.
+
+        Terminal values start at 10,000 and compound correlated Gaussian
+        simple returns for ``trading_days_per_year`` draws. Gross returns
+        at or below zero exhaust the fund. Terminal metrics are empirical
+        mean and population standard deviation. Benchmark Sharpe is NaN
+        when dispersion is zero. Use ``random_state`` for an isolated NumPy
+        generator. The default follows the global NumPy seed.
         """
-        perform portfolio analysis with Monte Carlo simulations and MPT.
+        from riskoptima.optim._portfolio_monte_carlo import analyze_portfolio, validate_portfolio_request
 
-        :param investment_allocation: dict of ticker -> investment (e.g. {'AAPL':1500,'JNJ':1200,...})
-        :param analysis_start_date: Start date for historical data (YYYY-MM-DD)
-        :param analysis_end_date: End date for historical data (YYYY-MM-DD)
-        :param benchmark_index: e.g. 'SPY'
-        :param risk_free_rate: e.g. 0.05
-        :param number_of_portfolio_weights: Monte Carlo sample size for random weights
-        :param trading_days_per_year: Typically 252 or 260
-        :param number_of_monte_carlo_runs: e.g. 1000
-        :return: Dictionary with all relevant results and data
-        """
-
-        stock_tickers, initial_weights = RiskOptima.calculate_portfolio_allocation(investment_allocation)
-
-        stock_data = RiskOptima.download_data_yfinance(stock_tickers, analysis_start_date, analysis_end_date)
-        benchmark_data = RiskOptima.download_data_yfinance([benchmark_index], analysis_start_date, analysis_end_date)
-
-        if isinstance(benchmark_data, pd.DataFrame) and benchmark_index in benchmark_data.columns:
-            benchmark_data = benchmark_data[benchmark_index]
-
-        # Calculate daily returns
-        stock_daily_returns = stock_data.pct_change(fill_method=None).dropna()
-        benchmark_daily_returns = benchmark_data.pct_change(fill_method=None).dropna()
-
-        # Generate covariance matrix for the stock returns
-        covariance_matrix = stock_daily_returns.cov()
-
-        # Initialize arrays for simulation results and recorded weights
-        simulation_results = np.zeros((4, number_of_portfolio_weights))
-        recorded_weights = np.zeros((len(stock_tickers), number_of_portfolio_weights))
-
-        # Monte Carlo Simulation
-        for i in range(number_of_portfolio_weights):
-            # Generate random weights and normalize
-            random_weights = np.random.random(len(stock_tickers))
-            normalized_weights = random_weights / np.sum(random_weights)
-            recorded_weights[:, i] = normalized_weights
-
-            annualized_return = np.sum(
-                normalized_weights * stock_daily_returns.mean()
-            ) * trading_days_per_year
-            annualized_stddev = np.sqrt(
-                np.dot(normalized_weights.T, np.dot(covariance_matrix, normalized_weights))
-            ) * np.sqrt(trading_days_per_year)
-            sharpe_ratio = (annualized_return - risk_free_rate) / annualized_stddev
-
-            simulation_results[:, i] = [annualized_return, annualized_stddev, sharpe_ratio, i]
-
-        columns = ['Annualized Return', 'Annualized Volatility', 'Sharpe Ratio', 'Simulation Index']
-        simulated_portfolios = pd.DataFrame(simulation_results.T, columns=columns)
-
-        # Sort by volatility, find portfolio with maximum Sharpe ratio and median volatility
-        sorted_by_volatility = simulated_portfolios.sort_values(by='Annualized Volatility').reset_index()
-        optimal_sharpe_idx = simulated_portfolios['Sharpe Ratio'].idxmax()
-        median_volatility_idx = sorted_by_volatility.iloc[len(sorted_by_volatility) // 2]['Simulation Index']
-
-        optimal_weights = recorded_weights[:, optimal_sharpe_idx]
-        #optimal_weights_percent = optimal_weights * 100
-        #optimal_weights_percent_str = ', '.join([f"{weight:.2f}%" for weight in optimal_weights_percent])
-        median_volatility_weights = recorded_weights[:, int(median_volatility_idx)]
-
-        # Prepare for distribution simulation
-        daily_mean_returns = stock_daily_returns.mean()
-        #daily_volatility = stock_daily_returns.std()
-        benchmark_mean_return = benchmark_daily_returns.mean()
-        benchmark_volatility = benchmark_daily_returns.std()
-
-        portfolio_weights = {
-            'Optimized Portfolio': optimal_weights,
-            'Current Portfolio': initial_weights,
-            'Median Portfolio': median_volatility_weights
-        }
-        portfolio_results = {name: [] for name in portfolio_weights.keys()}
-        market_final_values = []
-
-        def run_simulation(weights, length, covariance_matrix):
-            """Runs a Monte Carlo simulation for a given set of weights and time period, considering asset correlation."""
-            fund_value = [10000]
-            chol_matrix = np.linalg.cholesky(covariance_matrix)
-            for _ in range(length):
-                correlated_random_returns = np.dot(chol_matrix, np.random.normal(size=(len(stock_tickers),)))
-                individual_asset_returns = daily_mean_returns + correlated_random_returns
-                portfolio_return = np.dot(weights, individual_asset_returns)
-                fund_value.append(fund_value[-1] * (1 + portfolio_return))
-            return fund_value
-
-        portfolio_metrics = {}
-        for portfolio_name, weights in portfolio_weights.items():
-            final_values = []
-            returns_list = []
-            for _ in range(number_of_monte_carlo_runs):
-                simulated_fund_values = run_simulation(weights, trading_days_per_year, covariance_matrix)
-                final_value = simulated_fund_values[-1]
-                final_values.append(final_value)
-                simulation_return = (final_value / 10000) - 1
-                returns_list.append(simulation_return)
-            portfolio_results[portfolio_name] = final_values
-            expected_return = np.mean(returns_list)
-            volatility = np.std(returns_list)
-            portfolio_metrics[portfolio_name] = (expected_return, volatility)
-
-        for _ in range(number_of_monte_carlo_runs):
-            market_fund_value = [10000]
-            for _ in range(trading_days_per_year):
-                mr = np.random.normal(benchmark_mean_return, benchmark_volatility)
-                market_fund_value.append(market_fund_value[-1] * (1 + mr))
-            market_final_values.append(market_fund_value[-1])
-
-        market_final_values_percent = [(value / 10000 - 1) * 100 for value in market_final_values]
-        market_expected_return = np.mean(market_final_values) / 10000 - 1
-        market_vol = np.std(market_final_values) / 10000
-        market_sharpe_ratio = (market_expected_return - risk_free_rate) / market_vol
-
-        return {
-            "stock_tickers": stock_tickers,
-            "initial_weights": initial_weights,
-            "stock_data": stock_data,
-            "benchmark_data": benchmark_data,
-            "stock_daily_returns": stock_daily_returns,
-            "benchmark_daily_returns": benchmark_daily_returns,
-            "covariance_matrix": covariance_matrix,
-            "simulated_portfolios": simulated_portfolios,
-            "recorded_weights": recorded_weights,
-            "optimal_weights": optimal_weights,
-            "optimal_sharpe_idx": optimal_sharpe_idx,
-            "median_volatility_weights": median_volatility_weights,
-            "portfolio_results": portfolio_results,
-            "portfolio_metrics": portfolio_metrics,
-            "market_final_values": market_final_values,
-            "market_final_values_percent": market_final_values_percent,
-            "market_expected_return": market_expected_return,
-            "market_volatility": market_vol,
-            "market_sharpe_ratio": market_sharpe_ratio
-        }
+        validate_portfolio_request(
+            investment_allocation, risk_free_rate, number_of_portfolio_weights,
+            trading_days_per_year, number_of_monte_carlo_runs,
+        )
+        tickers, initial_weights = RiskOptima.calculate_portfolio_allocation(investment_allocation)
+        stock_data = RiskOptima.download_data_yfinance(tickers, analysis_start_date, analysis_end_date)
+        benchmark = RiskOptima.download_data_yfinance([benchmark_index], analysis_start_date, analysis_end_date)
+        return analyze_portfolio(
+            tickers, initial_weights, stock_data, benchmark, benchmark_index, risk_free_rate,
+            number_of_portfolio_weights, trading_days_per_year, number_of_monte_carlo_runs, random_state,
+        )
 
     @staticmethod
     def plot_weights_table(initial_weights, optimal_weights, labels, ax):
@@ -2385,7 +2278,7 @@ class RiskOptima:
             opt_w_str = [f"{w*100:.2f}%" for w in optimal_weights]
             for label, cw, ow in zip(labels, curr_w_str, opt_w_str):
                 df_weights.loc[len(df_weights)] = [label, cw, ow]
-        df_weights.set_index("Fund", inplace=True)
+        df_weights = df_weights.set_index("Fund")
         RiskOptima.add_table_to_plot(
             ax, df_weights, x=1.02, y=0.52, column_width=0.40, fontsize=9
         )
@@ -2410,7 +2303,7 @@ class RiskOptima:
             f"{market_sharpe_ratio:.2f}"
         ])
         df_perf = pd.DataFrame(perf_data, columns=["Portfolio", "Mean%", "Vol%", "Sharpe"])
-        df_perf.set_index("Portfolio", inplace=True)
+        df_perf = df_perf.set_index("Portfolio")
         RiskOptima.add_table_to_plot(
             ax, df_perf, x=1.02, y=0.28, column_width=0.40, fontsize=9
         )
@@ -2431,7 +2324,7 @@ class RiskOptima:
             prob_text_data.append(["Prob(Optimized > Market)", f"{p_beat_market:.2%}"])
 
         df_prob = pd.DataFrame(prob_text_data, columns=["Description", "Value"])
-        df_prob.set_index("Description", inplace=True)
+        df_prob = df_prob.set_index("Description")
         RiskOptima.add_table_to_plot(
             ax, df_prob, x=1.02, y=0.12, column_width=0.40, fontsize=9
         )
@@ -2805,7 +2698,9 @@ class RiskOptima:
         risk_free_rate,
         number_of_portfolio_weights,
         trading_days_per_year,
-        number_of_monte_carlo_runs
+        number_of_monte_carlo_runs,
+        *,
+        random_state=None,
     ):
         """
         Run portfolio probability analysis from an asset table. The asset_table is expected to have:
@@ -2819,6 +2714,7 @@ class RiskOptima:
 
         The function calls an internal RiskOptima.run_portfolio_analysis method (which uses the provided
         investment allocation) and then produces probability distribution plots and performance tables.
+        Pass ``random_state`` to reproduce the samples without changing NumPy's global seed.
         """
 
         def density_as_percent(y, _):
@@ -2839,7 +2735,8 @@ class RiskOptima:
             risk_free_rate              = risk_free_rate,
             number_of_portfolio_weights = number_of_portfolio_weights,
             trading_days_per_year       = trading_days_per_year,
-            number_of_monte_carlo_runs  = number_of_monte_carlo_runs
+            number_of_monte_carlo_runs  = number_of_monte_carlo_runs,
+            random_state               = random_state,
         )
 
         # Extract results

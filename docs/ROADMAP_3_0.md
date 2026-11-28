@@ -18,7 +18,7 @@ v2.8.2 corrects Merton pricing, event-time access, financial ML validation, cova
 2. Make legacy quantitative methods delegate to validated modular kernels where contracts agree. Use explicit deprecations and migration examples where callers rely on differences. Replace legacy normalized sampling bounds only after specifying the intended portfolio constraints and testing callers.
 3. Separate package imports from vendor adapters and plotting. Introduce timestamp and data provenance at the input boundary. Test the legacy SMA and event backtest together for signal time, next executable quote, and intrabar behavior.
 4. Fixed-parameter HMM inference, extreme emission and Merton tail checks, and Heston and SABR reference validation are complete. See the numerical validation ledger for remaining approximation limits.
-5. Increase legacy branch coverage based on decision impact. Raise coverage floors only after new coverage is reproducible across supported Python versions.
+5. Increase legacy branch coverage based on decision impact. The legacy portfolio Monte Carlo workflow now has offline label, sampling and payoff regressions. Audit the legacy straddle backtester next. Raise coverage floors only after new coverage is reproducible across supported Python versions.
 
 
 [v2.8.3](RELEASE_NOTES_v2.8.3.md) ships the completed compatibility, backtesting and filtering work.
