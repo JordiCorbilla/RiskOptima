@@ -123,9 +123,28 @@ dislocation notebook completed 11 of 11 analyses. See the
 [release notes](RELEASE_NOTES_v2.8.4.md) and
 [PyPI release](https://pypi.org/project/riskoptima/2.8.4/).
 
+## 28 November 2026 — VIX divergence execution
+
+Release coverage identified the legacy VIX workflow as an untested
+entry point with 16 uncovered branches in its entry method. Added
+caller-level tests and fixed the empty-table failure and the exit scan
+that previously stopped on an ineligible entry-day trigger. The
+`next_close` mode records pivot, confirmation, entry, exit trigger and
+exit fill dates. The default retrospective return calculation emits a
+deprecation warning.
+
+Notebook 03 documents both conventions. Both live examples ran with
+`next_close` against the development checkout and passed the timestamp
+checks. All 249 tests passed. The VIX calculation module covered all
+68 measured lines and 26 measured branches. See
+[ADR 0004](adr/0004-vix-execution-timing.md) and the
+[numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md).
+
 ## Next outstanding item
 
-Use the coverage report to select high-impact untested legacy branches and
-add caller-level regression tests. Historical vendor publication and
-revision timing, Platform volatility label migration and coarse-grid
-accuracy near the stochastic volatility boundaries remain open.
+Add offline caller-level regressions for `run_portfolio_analysis`, the
+legacy Monte Carlo portfolio workflow used by notebook 02. Independently
+check covariance label alignment and the sampling and payoff conventions.
+Historical vendor publication and revision timing, Platform volatility
+label migration and coarse-grid accuracy near the stochastic volatility
+boundaries remain open.

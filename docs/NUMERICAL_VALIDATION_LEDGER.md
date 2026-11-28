@@ -120,3 +120,20 @@ first stochastic call's parameters. One run took 13.27 seconds before the
 change and 0.39 seconds after vectorizing the path updates. The seeded
 sample estimate changed from 5.708306 to 5.859125 because draw ordering and
 the discretization changed.
+
+## 28 November 2026 — VIX divergence execution
+
+The fixture uses business-day closes with the consecutive lows at 96 and
+95 and their VIX quotes at 21 and 30. The entry observation at 107 confirms
+the second pivot. The first later base close is 112. An unavailable base
+quote follows, then the 114 close exceeds the three-close mean of 111.
+The order exits at the next 108 close. [Regression tests](../tests/test_vix_timing.py) · [Execution conventions](adr/0004-vix-execution-timing.md)
+
+| Model or invariant | Reference | Input | Expected | Actual | Tolerance | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Causal VIX entry | Strict three-close pivot and next-close execution | 9 January 2025 pivot at 95, 10 January confirmation at 107, VIX missing on 13 January | 13 January fill at 112, pivot VIX 30 | Same dates, prices and pivot VIX | Exact | Pass |
+| Causal VIX exit | Mean of the last three observed closes and next-close execution | 14 January missing base close, 15 January close at 114 above mean 111 | Trigger 15 January, exit 16 January at 108, trade return -0.035714285714 | Same trigger, fill and return | Exact dates and prices, 1e-12 return | Pass |
+| Lower-band exit | Skip a neutral close and wait through an unavailable quote | Eligible closes 96, 91, missing and 88 with lower band 95 | Trigger at 91, fill at 88 | Same trigger and fill | Exact | Pass |
+| Legacy later exit | Start observing strictly after entry date | Entry at 100 above its mean, next close at 105 above its mean | Later exit at 105 when entry-day exits are disabled | Exit at 105. v2.8.4 returned no exit. | Exact | Pass |
+| Empty and incomplete histories | No qualified pivot or no valid later fill | Monotone prices, truncated histories and missing VIX at a pivot | Empty result tables with stable columns or an unfilled exit | Matched | Exact | Pass |
+| Prefix stability | Append observations after both fills | Thirty Hypothesis cases with varying future closes | Existing entry and exit records unchanged | Matched | Exact | Pass |
