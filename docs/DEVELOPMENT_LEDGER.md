@@ -20,10 +20,6 @@ Notebook 02 also completed end to end against the development checkout.
 See [ADR 0005](adr/0005-legacy-portfolio-monte-carlo.md) and the
 [numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md).
 
-The next uncovered financial workflow to audit is the legacy straddle
-backtester. Check signal and fill chronology, option units and payoff
-accounting against a small offline fixture before changing its API.
-
 ## 22 November 2026 — Phase 2 compatibility and conventions
 
 | Roadmap item | Status | Evidence and decision |
@@ -157,9 +153,8 @@ checks. All 249 tests passed. The VIX calculation module covered all
 
 ## Next outstanding item
 
-Add offline caller-level regressions for `run_portfolio_analysis`, the
-legacy Monte Carlo portfolio workflow used by notebook 02. Independently
-check covariance label alignment and the sampling and payoff conventions.
+Audit the legacy earnings straddle backtester. Check signal and fill
+chronology, option units and payoff accounting against an offline fixture.
 Historical vendor publication and revision timing, Platform volatility
 label migration and coarse-grid accuracy near the stochastic volatility
 boundaries remain open.

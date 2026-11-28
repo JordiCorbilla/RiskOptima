@@ -32,6 +32,11 @@ https://pypistats.org/packages/riskoptima
 
 RiskOptima is for research and educational use only. Its reports and scores are **not investment advice** or recommendations to buy, sell or hold any instrument. Models and third-party data may be incomplete or inaccurate; past performance does not guarantee future results. Independently verify inputs and results before making investment decisions.
 
+## What's New in 2.8.5
+
+- VIX divergence supports next-close entry and exit fills. The entry table records when a pivot is confirmed and the exit table separates triggers from fills.
+- Legacy portfolio Monte Carlo aligns allocations and covariance by asset label, accepts singular covariance and applies an absorbing zero terminal payoff after fund exhaustion. [Full release notes](https://github.com/JordiCorbilla/RiskOptima/blob/main/docs/RELEASE_NOTES_v2.8.5.md)
+
 ## What's New in 2.8.4
 
 - Heston pricing and paths share a full-truncation variance step. The European call price uses the analytical solution when variance is deterministic.
@@ -462,7 +467,7 @@ Run notebooks from the repository root so local sample paths and the checkout re
 Notebook setup cells do not upgrade RiskOptima automatically. In a fresh environment, install the desired release before opening Jupyter:
 
 ```bash
-python -m pip install "riskoptima==2.8.4" jupyter
+python -m pip install "riskoptima==2.8.5" jupyter
 python -m jupyter lab
 ```
 
