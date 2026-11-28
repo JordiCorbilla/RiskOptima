@@ -9,6 +9,21 @@
   ledger. It had no root AGENTS.md or cross-phase development or validation
   ledger in the available history.
 
+## 28 November 2026 — Legacy portfolio Monte Carlo
+
+Validated notebook 02's portfolio probability workflow with offline
+caller-level fixtures. Corrected provider label alignment, singular
+covariance sampling and terminal payoffs after ruin. The legacy
+normalized-uniform draws and seeded positive-payoff cases matched the
+scalar reference. Portfolio covariance carries per-period metadata.
+Notebook 02 also completed end to end against the development checkout.
+See [ADR 0005](adr/0005-legacy-portfolio-monte-carlo.md) and the
+[numerical validation ledger](NUMERICAL_VALIDATION_LEDGER.md).
+
+The next uncovered financial workflow to audit is the legacy straddle
+backtester. Check signal and fill chronology, option units and payoff
+accounting against a small offline fixture before changing its API.
+
 ## 22 November 2026 — Phase 2 compatibility and conventions
 
 | Roadmap item | Status | Evidence and decision |

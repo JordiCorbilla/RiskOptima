@@ -3,6 +3,28 @@
 The [Phase 1 validation ledger](audit/VALIDATION_LEDGER.md) records the
 regressions completed before v2.8.2. This ledger records subsequent work.
 
+## 28 November 2026 — Legacy portfolio Monte Carlo
+
+The scalar reference computes sample covariance from centered returns,
+uses a two-asset analytical Cholesky factor and compounds each sampled
+daily portfolio return. It preserves the legacy NumPy seed and draw
+order. Displayed amounts are rounded. [Regression tests](../tests/test_portfolio_monte_carlo.py) · [Model conventions](adr/0005-legacy-portfolio-monte-carlo.md)
+
+| Model or invariant | Reference | Input | Expected | Actual | Tolerance | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Daily covariance and candidate ranking | Sample covariance and scalar quadratic form using the ordered asset returns | Allocation Z 75%, A 25%, four daily return rows, seed 41, four candidates, three periods, risk-free rate 1% | Daily variances 0.000466666667 and 0.000691666667, covariance -0.000366666667, optimum at candidate index 3 | All covariance and ranking values matched | 1e-12 absolute | Pass |
+| Portfolio and benchmark payoffs | Scalar correlated draws and cumulative product | Same fixture, two simulations, provider columns reversed | Current portfolio terminal values 10233.910789687508 and 10567.244173811576. First benchmark value 10120.964090516570 | Same values. v2.8.4 gave 10488.718755093618 for the first current portfolio path with reversed provider columns. | 2e-10 absolute payoff, 1e-12 return statistics | Pass |
+| Provider permutations | Same labeled daily histories and seeded draw streams | Thirty Hypothesis examples with varied seeds and allocations, provider columns and timestamps in reverse order | Identical labeled covariance, candidate rows and terminal values | Exact matches | Exact | Pass |
+| Singular covariance | Identical asset returns with exact two-period Gaussian gross-return moments, where ruin probability is negligible | Duplicated Z history, 10,000 paths, two periods, seed 41 | Rank one, terminal return mean 0.020100 and standard deviation 0.030859538414 | Rank one, mean 0.019610744394 and standard deviation 0.030644583510. v2.8.4 raised a Cholesky error. | Five standard errors on mean, 5% relative on standard deviation | Pass |
+| Wealth after ruin | Absorbing zero payoff | Historical returns [-0.5, 0.75, 0] and two -3 standard-normal shocks | Daily gross factor -0.804125275484 exhausts the fund, terminal value zero | Zero for all portfolios and benchmark. v2.8.4 returned positive terminal value 6466.174586727890. | Exact | Pass |
+| Missing and deterministic histories | Complete-case adjacent returns and constant gross factors | Missing quote on the third row in one asset. Separate flat-price fixture with five paths. | Preserve only the first and fourth asset returns in the missing-quote case. All flat paths end at 10000 with zero dispersion. | Matched. Flat benchmark Sharpe is undefined and returned as NaN. | Exact dates and flat metrics, 1e-12 return values | Pass |
+
+The Windows timing fixture used 10 assets, 100 historical returns, 2,000
+candidate allocations, 100 paths and 60 simulation steps, with seed 41.
+The median of three calls was 6.20 seconds before the change and 0.044
+seconds after it. The optimum index remained 1768, and the first current
+portfolio and benchmark terminal values matched within 1e-10.
+
 ## 22 November 2026 — Option, rate and frequency compatibility
 
 Independent references used QuantLib 1.44 and NumPy. The regression fixtures
